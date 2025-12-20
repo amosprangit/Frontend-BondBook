@@ -25,6 +25,7 @@ import {
   FollowRequest,
   MergeRequest,
 } from '../store/api/notificationApi';
+import { useLazyCheckDueRemindersQuery } from '../store/api/remindersApi';
 import { API_URL } from '@env';
 import Toast from 'react-native-toast-message';
 
@@ -40,6 +41,9 @@ export default function NotificationScreen({ navigation }: { navigation: any }) 
   const [deleteNotification] = useDeleteNotificationMutation();
   const [deletingNotification, setDeletingNotification] = React.useState<string | null>(null);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
+
+  // Check due reminders when screen loads
+  const [checkDueReminders] = useLazyCheckDueRemindersQuery();
 
   // Fetch notifications, follow requests, and merge requests
   // Poll notifications every 30 seconds to check for new reminder notifications
@@ -75,16 +79,29 @@ export default function NotificationScreen({ navigation }: { navigation: any }) 
     setPreviousNotificationCount(notifications.length);
   }, [notifications.length, previousNotificationCount]);
 
+  // Check due reminders when screen is focused
+  React.useEffect(() => {
+    // Check for due reminders when screen loads
+    checkDueReminders().then(() => {
+      // Refetch notifications after checking reminders
+      refetchNotifications();
+    }).catch((error) => {
+      console.error('Error checking due reminders:', error);
+    });
+  }, []); // Only run once on mount
+
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
+      // Check due reminders first, then refetch notifications
+      await checkDueReminders();
       await Promise.all([refetchNotifications(), refetchFollowRequests(), refetchMergeRequests()]);
     } catch (error) {
       console.error('Refresh error:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [refetchNotifications, refetchFollowRequests, refetchMergeRequests]);
+  }, [refetchNotifications, refetchFollowRequests, refetchMergeRequests, checkDueReminders]);
 
   const handleAcceptRequest = async (requestId: string) => {
     setProcessingRequest(requestId);
@@ -432,13 +449,19 @@ export default function NotificationScreen({ navigation }: { navigation: any }) 
           ) : (
             notifications.map((notification) => {
               const fromUser = notification.fromUser;
-              const username = fromUser?.username || 'Someone';
-              const avatarUri = fromUser?.profilePicture
-                ? `${API_URL}${fromUser.profilePicture}`
-                : 'https://picsum.photos/150/150?random=1';
-              const messageBody = notification.message
-                ? notification.message.replace(username, '').trim()
-                : 'sent you a notification';
+              // For reminder notifications, don't show username
+              const isReminderNotification = notification.type === 'reminder_due';
+              const username = isReminderNotification ? '' : (fromUser?.username || 'Someone');
+              const avatarUri = isReminderNotification 
+                ? null // Don't show avatar for reminder notifications
+                : (fromUser?.profilePicture
+                    ? `${API_URL}${fromUser.profilePicture}`
+                    : 'https://picsum.photos/150/150?random=1');
+              const messageBody = isReminderNotification
+                ? notification.message // Show full message for reminders
+                : (notification.message
+                    ? notification.message.replace(username, '').trim()
+                    : 'sent you a notification');
               
               // Check if this is a merge request notification that can be acted upon
               const isMergeRequestNotification = notification.type === 'merge_request' && notification.relatedId;
@@ -489,16 +512,26 @@ export default function NotificationScreen({ navigation }: { navigation: any }) 
                           {getNotificationIcon(notification.type)}
                         </Text>
                       </View>
-                      <Image
-                        source={{ uri: avatarUri }}
-                        style={styles.notificationAvatar}
-                        resizeMode="cover"
-                      />
+                      {avatarUri ? (
+                        <Image
+                          source={{ uri: avatarUri }}
+                          style={styles.notificationAvatar}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.notificationAvatarPlaceholder}>
+                          <Ionicons name="notifications" size={24} color="#8B5CF6" />
+                        </View>
+                      )}
                       <View style={styles.notificationContent}>
                         <Text style={styles.notificationText}>
-                          <Text style={styles.notificationUsername}>
-                            {username}
-                          </Text>{' '}
+                          {username && (
+                            <>
+                              <Text style={styles.notificationUsername}>
+                                {username}
+                              </Text>{' '}
+                            </>
+                          )}
                           {messageBody}
                         </Text>
                         <Text style={styles.notificationTime}>
@@ -681,6 +714,15 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     marginRight: 12,
+  },
+  notificationAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   notificationContent: {
     flex: 1,

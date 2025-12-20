@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { Reminder } from '../store/api/remindersApi';
 
 interface ReminderPopupProps {
@@ -31,8 +32,76 @@ const ReminderPopup: React.FC<ReminderPopupProps> = ({
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const vibrationInterval = useRef<NodeJS.Timeout | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Start vibration pattern when popup is visible
+  // Play alarm/ringtone sound
+  const playAlarmSound = async () => {
+    try {
+      // Configure audio mode for alarm
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: false,
+      });
+
+      // Try multiple sound sources for reliability
+      const soundUrls = [
+        'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3', // Alarm beep
+        'https://assets.mixkit.co/active_storage/sfx/1862/1862-preview.mp3', // Notification
+        'https://cdn.pixabay.com/audio/2024/02/06/audio_ebdf49fba5.mp3', // Alert sound
+      ];
+
+      let soundLoaded = false;
+
+      for (const uri of soundUrls) {
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            { uri },
+            {
+              shouldPlay: true,
+              isLooping: true,
+              volume: 1.0
+            }
+          );
+          soundRef.current = sound;
+          soundLoaded = true;
+          console.log('🔔 Alarm sound started playing from:', uri);
+          break;
+        } catch (err) {
+          console.warn('Failed to load sound from:', uri);
+        }
+      }
+
+      if (!soundLoaded) {
+        console.warn('🔔 Could not load any alarm sound, using vibration only');
+      }
+    } catch (error) {
+      console.error('Error playing alarm sound:', error);
+      // Fallback: If sound fails, at least vibration will work
+    }
+  };
+
+  // Stop alarm sound
+  const stopAlarmSound = async () => {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+        console.log('🔔 Alarm sound stopped');
+      }
+      if (soundIntervalRef.current) {
+        clearInterval(soundIntervalRef.current);
+        soundIntervalRef.current = null;
+      }
+    } catch (error) {
+      console.error('Error stopping alarm sound:', error);
+    }
+  };
+
+  // Start vibration pattern and sound when popup is visible
   useEffect(() => {
     if (visible && reminder) {
       // Start scale animation
@@ -67,9 +136,13 @@ const ReminderPopup: React.FC<ReminderPopupProps> = ({
 
       Vibration.vibrate(vibrationPattern, true);
 
+      // Play alarm sound
+      playAlarmSound();
+
       return () => {
         pulseAnimation.stop();
         Vibration.cancel();
+        stopAlarmSound();
       };
     } else {
       scaleAnim.setValue(0);
@@ -78,6 +151,7 @@ const ReminderPopup: React.FC<ReminderPopupProps> = ({
 
   const handleClose = () => {
     Vibration.cancel();
+    stopAlarmSound();
     Animated.timing(scaleAnim, {
       toValue: 0,
       duration: 200,
@@ -90,6 +164,7 @@ const ReminderPopup: React.FC<ReminderPopupProps> = ({
   const handleDismiss = () => {
     if (reminder) {
       Vibration.cancel();
+      stopAlarmSound();
       Animated.timing(scaleAnim, {
         toValue: 0,
         duration: 200,
@@ -132,7 +207,29 @@ const ReminderPopup: React.FC<ReminderPopupProps> = ({
     }
   };
 
-  if (!visible || !reminder) return null;
+  // Debug logging
+  useEffect(() => {
+    console.log('🔔 ReminderPopup: Props changed', { 
+      visible, 
+      hasReminder: !!reminder, 
+      reminderTitle: reminder?.title,
+      reminderId: reminder?._id 
+    });
+    if (visible && reminder) {
+      console.log('🔔 ReminderPopup: Opening modal for reminder:', reminder.title);
+    } else if (visible && !reminder) {
+      console.warn('🔔 ReminderPopup: Visible but no reminder provided');
+    } else if (!visible && reminder) {
+      console.log('🔔 ReminderPopup: Modal not visible but reminder exists');
+    }
+  }, [visible, reminder]);
+
+  if (!visible || !reminder) {
+    if (visible && !reminder) {
+      console.warn('🔔 ReminderPopup: Returning null - visible=true but reminder is null');
+    }
+    return null;
+  }
 
   return (
     <Modal

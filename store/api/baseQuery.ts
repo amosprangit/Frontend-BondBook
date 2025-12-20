@@ -2,6 +2,9 @@ import { fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError, FetchBaseQueryMeta } from '@reduxjs/toolkit/query';
 import { API_URL } from '@env';
 
+// Log the API_URL to verify it's loaded correctly
+console.log('🔧 API_URL loaded:', API_URL);
+
 interface CustomBaseQueryConfig {
   prepareHeaders?: (headers: Headers) => Headers;
 }

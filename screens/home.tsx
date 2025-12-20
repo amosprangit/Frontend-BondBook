@@ -29,7 +29,7 @@ import ReminderPopup from '../components/ReminderPopup';
 import { useGetStoriesQuery, useGetStoriesFeedQuery, useGetMyStoriesQuery, useUploadStoryMutation, useDeleteStoryMutation } from '../store/api/storiesApi';
 import { useGetPostsQuery, useCreatePostMutation, useLikePostMutation, useCommentPostMutation, postsApi } from '../store/api/postsApi';
 import { useToggleFollowMutation, useGetProfileQuery, useCheckFollowRequestByPostQuery } from '../store/api/authApi';
-import { useLazyGetActiveDueRemindersQuery, useDismissReminderMutation, Reminder } from '../store/api/remindersApi';
+import { useGetRemindersQuery, useLazyGetActiveDueRemindersQuery, useDismissReminderMutation, Reminder } from '../store/api/remindersApi';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { API_URL, BASE_URL } from '@env';
 
@@ -223,9 +223,11 @@ export default function HomeScreen({navigation}: {navigation: any}) {
   const [reminderPopupVisible, setReminderPopupVisible] = useState(false);
   const [currentReminder, setCurrentReminder] = useState<Reminder | null>(null);
   const [pendingReminders, setPendingReminders] = useState<Reminder[]>([]);
+  const { data: remindersData, refetch: refetchReminders } = useGetRemindersQuery({ completed: false });
   const [getActiveDueReminders] = useLazyGetActiveDueRemindersQuery();
   const [dismissReminder] = useDismissReminderMutation();
-  const hasCheckedReminders = useRef(false);
+  const isCheckingReminders = useRef(false);
+  const lastShownReminderId = useRef<string | null>(null);
 
   // Track previous user to detect login changes
   const previousUserIdRef = useRef<string | null>(null);
@@ -304,62 +306,157 @@ const handleViewComments = (comments: any) => {
 
     // Update previous user ID
     previousUserIdRef.current = currentUserId || null;
+    
+    // Reset reminder check flag when user changes
+    if (currentUserId && previousUserIdRef.current !== currentUserId) {
+      isCheckingReminders.current = false;
+    }
   }, [reduxUser, refetch, refetchMyStories, refetchPosts]);
+
+  // Function to check for active due reminders using API
+  const checkReminders = useCallback(async () => {
+    if (!token) {
+      console.log('🔔 No token, skipping reminder check');
+      return;
+    }
+
+    // Don't check if popup is already visible
+    if (reminderPopupVisible) {
+      console.log('🔔 Popup already visible, skipping check');
+      return;
+    }
+
+    // Prevent multiple simultaneous checks
+    if (isCheckingReminders.current) {
+      console.log('🔔 Already checking reminders, skipping');
+      return;
+    }
+
+    isCheckingReminders.current = true;
+
+    try {
+      console.log('🔔 Checking for active due reminders via API...');
+      
+      const result = await getActiveDueReminders().unwrap();
+      console.log('🔔 Reminder check result:', result);
+      console.log('🔔 Result details:', {
+        success: result?.success,
+        count: result?.count,
+        remindersLength: result?.reminders?.length,
+        reminders: result?.reminders
+      });
+      
+      if (result && result.success && result.reminders && result.reminders.length > 0) {
+        // Filter out already shown reminders
+        const newReminders = result.reminders.filter(
+          (r: Reminder) => r._id !== lastShownReminderId.current
+        );
+        
+        console.log(`🔔 Filtered reminders: ${newReminders.length} (total: ${result.reminders.length}, last shown: ${lastShownReminderId.current})`);
+        
+        if (newReminders.length > 0) {
+          const reminderToShow = newReminders[0];
+          console.log(`🔔 ✅ Found ${newReminders.length} new due reminders`);
+          console.log(`🔔 Showing reminder: "${reminderToShow.title}"`);
+          console.log(`🔔 Reminder ID: ${reminderToShow._id}`);
+          console.log(`🔔 Reminder details:`, {
+            title: reminderToShow.title,
+            date: reminderToShow.reminderDate,
+            time: reminderToShow.reminderTime,
+            isCompleted: reminderToShow.isCompleted,
+            isDismissed: reminderToShow.isDismissed
+          });
+          
+          // Set state synchronously
+          setPendingReminders(newReminders);
+          setCurrentReminder(reminderToShow);
+          lastShownReminderId.current = reminderToShow._id;
+          
+          // Set visible immediately
+          console.log('🔔 Setting reminder popup visible to TRUE');
+          setReminderPopupVisible(true);
+          
+          // Verify state after a short delay
+          setTimeout(() => {
+            console.log('🔔 State verification - popup should be visible now');
+          }, 200);
+        } else {
+          console.log('🔔 All reminders already shown (filtered out)');
+        }
+      } else {
+        console.log('🔔 No due reminders found in API response');
+        if (result && result.success && result.reminders && result.reminders.length === 0) {
+          console.log('🔔 API returned success but empty reminders array');
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Error checking due reminders:', error);
+    } finally {
+      isCheckingReminders.current = false;
+    }
+  }, [token, getActiveDueReminders, reminderPopupVisible]);
+
+  // Check reminders when component mounts
+  useEffect(() => {
+    if (token) {
+      // Initial check after a short delay to ensure screen is ready
+      const timer = setTimeout(() => {
+        checkReminders();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [token, checkReminders]);
 
   // Check for due reminders when screen is focused
   useFocusEffect(
     useCallback(() => {
-      const checkReminders = async () => {
-        if (!token) return;
+      // Refetch reminders and check when screen is focused
+      refetchReminders();
 
-        try {
-          const result = await getActiveDueReminders().unwrap();
-          if (result.success && result.reminders && result.reminders.length > 0) {
-            // Store all pending reminders
-            setPendingReminders(result.reminders);
-            // Show the first reminder
-            setCurrentReminder(result.reminders[0]);
-            setReminderPopupVisible(true);
-          }
-        } catch (error) {
-          console.error('Error checking due reminders:', error);
-        }
-      };
-
-      // Check reminders when screen is focused
-      checkReminders();
+      // Set up periodic checking every 1 minute while screen is focused
+      const intervalId = setInterval(() => {
+        refetchReminders();
+        checkReminders();
+      }, 60000); // Check every 1 minute
 
       return () => {
-        // Cleanup if needed
+        clearInterval(intervalId);
       };
-    }, [token, getActiveDueReminders])
+    }, [checkReminders, refetchReminders])
   );
 
   // Handle closing popup (just close, will show again on next app open)
-  const handleCloseReminderPopup = () => {
+  const handleCloseReminderPopup = useCallback(() => {
+    console.log('🔔 Closing reminder popup');
     setReminderPopupVisible(false);
     // Check if there are more reminders to show
     const remainingReminders = pendingReminders.filter(
       (r) => r._id !== currentReminder?._id
     );
     if (remainingReminders.length > 0) {
+      console.log(`🔔 ${remainingReminders.length} more reminders to show`);
       // Show next reminder after a short delay
       setTimeout(() => {
+        lastShownReminderId.current = remainingReminders[0]._id;
         setCurrentReminder(remainingReminders[0]);
         setPendingReminders(remainingReminders);
         setReminderPopupVisible(true);
       }, 500);
     } else {
+      console.log('🔔 No more reminders to show');
       setCurrentReminder(null);
       setPendingReminders([]);
+      // Reset lastShownReminderId so it can show again on next check
+      lastShownReminderId.current = null;
     }
-  };
+  }, [pendingReminders, currentReminder]);
 
   // Handle dismissing reminder (turn off permanently)
   const handleDismissReminder = async (reminderId: string) => {
     try {
       await dismissReminder(reminderId).unwrap();
       setReminderPopupVisible(false);
+      refetchReminders(); // Refresh reminders list
       Toast.show({
         type: 'success',
         text1: 'Reminder Off',
@@ -370,6 +467,7 @@ const handleViewComments = (comments: any) => {
       if (remainingReminders.length > 0) {
         // Show next reminder after a short delay
         setTimeout(() => {
+          lastShownReminderId.current = remainingReminders[0]._id;
           setCurrentReminder(remainingReminders[0]);
           setPendingReminders(remainingReminders);
           setReminderPopupVisible(true);
@@ -377,6 +475,7 @@ const handleViewComments = (comments: any) => {
       } else {
         setCurrentReminder(null);
         setPendingReminders([]);
+        lastShownReminderId.current = null;
       }
     } catch (error: any) {
       console.error('Error dismissing reminder:', error);

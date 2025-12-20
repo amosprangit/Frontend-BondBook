@@ -71,7 +71,28 @@ export default function UserInfoScreen({ navigation, route }: UserInfoScreenProp
   // Followers/Following modal state
   const [followersFollowingModalVisible, setFollowersFollowingModalVisible] = useState(false);
   const [modalType, setModalType] = useState<'followers' | 'following'>('followers');
-  
+
+  // Fetch followers and following lists - MUST be before any early returns
+  const {
+    data: followersData,
+    isLoading: isLoadingFollowers,
+    error: followersError,
+    refetch: refetchFollowers,
+    isFetching: isFetchingFollowers
+  } = useGetFollowersQuery(userId, {
+    skip: !userId || !followersFollowingModalVisible
+  });
+
+  const {
+    data: followingData,
+    isLoading: isLoadingFollowing,
+    error: followingError,
+    refetch: refetchFollowing,
+    isFetching: isFetchingFollowing
+  } = useGetFollowingQuery(userId, {
+    skip: !userId || !followersFollowingModalVisible
+  });
+
   // Track previous user to detect login changes
   const previousUserIdRef = useRef<string | null>(null);
   
@@ -494,27 +515,6 @@ export default function UserInfoScreen({ navigation, route }: UserInfoScreenProp
   const followingCount = userProfile.followingCount || 0;
   const postsCount = userProfile.postsCount || 0;
   const isFollowing = isFollowingState;
-  
-  // Fetch followers and following lists when modal is visible
-  const { 
-    data: followersData, 
-    isLoading: isLoadingFollowers, 
-    error: followersError,
-    refetch: refetchFollowers,
-    isFetching: isFetchingFollowers
-  } = useGetFollowersQuery(userId, {
-    skip: !userId || !followersFollowingModalVisible
-  });
-  
-  const { 
-    data: followingData, 
-    isLoading: isLoadingFollowing, 
-    error: followingError,
-    refetch: refetchFollowing,
-    isFetching: isFetchingFollowing
-  } = useGetFollowingQuery(userId, {
-    skip: !userId || !followersFollowingModalVisible
-  });
   
   // Extract followers and following arrays from API response
   const followers = Array.isArray(followersData?.followers) 
