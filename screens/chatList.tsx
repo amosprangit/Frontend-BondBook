@@ -110,7 +110,7 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
         ) : filteredConnections.length > 0 ? (
           filteredConnections.map((connection) => {
             const profilePic = connection.profilePicture 
-              ? API_URL + connection.profilePicture 
+              ? `${API_URL}/${connection.profilePicture.replace(/^\//, '')}?t=${connection.updatedAt || Date.now()}`
               : 'https://picsum.photos/150/150?random=1';
             
             return (
@@ -122,22 +122,11 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
               >
                 <View style={styles.avatarContainer}>
                   <View style={styles.profilePictureBorder}>
-                    <View style={styles.mutualAvatar}>
-                      <View style={styles.profilePictureLeft}>
-                        <Image 
-                          source={{ uri: profilePic }} 
-                          style={styles.halfProfileImage}
-                          resizeMode="cover"
-                        />
-                      </View>
-                      <View style={styles.profilePictureRight}>
-                        <Image 
-                          source={{ uri: profilePic }} 
-                          style={styles.halfProfileImage}
-                          resizeMode="cover"
-                        />
-                      </View>
-                    </View>
+                    <Image 
+                      source={{ uri: profilePic }} 
+                      style={styles.fullProfileImage}
+                      resizeMode="cover"
+                    />
                   </View>
                 </View>
 
@@ -154,7 +143,7 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
                     <Text 
                       style={[
                         styles.lastMessage,
-                        connection.unreadCount && connection.unreadCount > 0 && styles.unreadMessage
+                        (connection.unreadCount && connection.unreadCount > 0) ? styles.unreadMessage : null
                       ]} 
                       numberOfLines={1}
                     >
@@ -340,30 +329,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 12,
   },
-  mutualAvatar: {
+  fullProfileImage: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    flexDirection: 'row',
-    overflow: 'hidden',
-  },
-  profilePictureLeft: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  profilePictureRight: {
-    flex: 1,
-    backgroundColor: '#E0E7FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  halfProfileImage: {
-    width: '100%',
-    height: '100%',
   },
   newMessageButton: {
     position: 'absolute',

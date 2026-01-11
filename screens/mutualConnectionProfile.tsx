@@ -31,6 +31,7 @@ export default function MutualConnectionProfileScreen({ route, navigation }: { r
   const { mutualConnectionId, displayName, connectionId } = route.params || {};
   const { user: currentUser } = useAppSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
+  const [imageVersion, setImageVersion] = useState(0);
 
   const { width } = useWindowDimensions();
   const isCompactLayout = width < 380;
@@ -97,7 +98,7 @@ export default function MutualConnectionProfileScreen({ route, navigation }: { r
   }
 
   const profilePicture = connection?.profilePicture
-    ? API_URL + connection.profilePicture
+    ? `${API_URL}/${connection.profilePicture.replace(/^\//, '')}?v=${imageVersion}&t=${connection.updatedAt || Date.now()}`
     : 'https://picsum.photos/150/150?random=10';
   const postsCount = connection?.postsCount ?? postsData?.pagination?.total ?? connectionPosts.length ?? 0;
   const followersCount = connection?.followersCount || 0;
@@ -168,7 +169,9 @@ export default function MutualConnectionProfileScreen({ route, navigation }: { r
         text2: 'Profile picture updated successfully!',
       });
 
-      refetch();
+      // Force image reload by updating version and refetching data
+      setImageVersion(prev => prev + 1);
+      await refetch();
     } catch (error: any) {
       console.error('Update profile picture error:', error);
       Toast.show({
@@ -324,22 +327,12 @@ export default function MutualConnectionProfileScreen({ route, navigation }: { r
           <View style={[styles.profileHeader, isCompactLayout && styles.profileHeaderCompact]}>
             <View style={[styles.profilePictureContainer, isCompactLayout && styles.profilePictureContainerCompact]}>
               <View style={styles.profilePictureBorder}>
-                <View style={styles.profilePicture}>
-                  <View style={styles.profilePictureLeft}>
-                    <Image
-                      source={{ uri: profilePicture }}
-                      style={styles.halfProfileImage}
-                      resizeMode="cover"
-                    />
-                  </View>
-                  <View style={styles.profilePictureRight}>
-                    <Image
-                      source={{ uri: profilePicture }}
-                      style={styles.halfProfileImage}
-                      resizeMode="cover"
-                    />
-                  </View>
-                </View>
+                <Image
+                  key={`profile-${imageVersion}`}
+                  source={{ uri: profilePicture }}
+                  style={styles.fullProfileImage}
+                  resizeMode="cover"
+                />
               </View>
               {isPartOfConnection && (
                 <TouchableOpacity
@@ -400,7 +393,7 @@ export default function MutualConnectionProfileScreen({ route, navigation }: { r
             {users.map((user, index) => (
               <View key={user._id} style={styles.userItem}>
                 <Image
-                  source={{ uri: user.profilePicture ? API_URL + user.profilePicture : 'https://picsum.photos/150/150?random=' + (index + 1) }}
+                  source={{ uri: user.profilePicture ? API_URL + "/" + user.profilePicture.replace(/^\//, '') : 'https://picsum.photos/150/150?random=' + (index + 1) }}
                   style={styles.userAvatar}
                   resizeMode="cover"
                 />
@@ -649,8 +642,12 @@ const styles = StyleSheet.create({
     width: 106,
     height: 106,
     borderRadius: 53,
-    flexDirection: 'row',
     overflow: 'hidden',
+  },
+  fullProfileImage: {
+    width: 106,
+    height: 106,
+    borderRadius: 53,
   },
   profileDetails: {
     flex: 1,

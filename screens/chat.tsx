@@ -54,7 +54,7 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
   
   // Get profile picture URL
   const profilePicture = connection?.profilePicture
-    ? API_URL + connection.profilePicture
+    ? `${API_URL}/${connection.profilePicture.replace(/^\//, '')}?t=${connection.updatedAt || Date.now()}`
     : 'https://picsum.photos/150/150?random=10';
 
   // Mark messages as read when opening chat
@@ -141,22 +141,11 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
           <TouchableOpacity style={styles.userInfo} onPress={handleProfilePress}>
             <View style={styles.profilePictureContainer}>
               <View style={styles.profilePictureBorder}>
-                <View style={styles.profilePicture}>
-                  <View style={styles.profilePictureLeft}>
-                    <Image
-                      source={{ uri: profilePicture }}
-                      style={styles.halfProfileImage}
-                      resizeMode="cover"
-                    />
-                  </View>
-                  <View style={styles.profilePictureRight}>
-                    <Image
-                      source={{ uri: profilePicture }}
-                      style={styles.halfProfileImage}
-                      resizeMode="cover"
-                    />
-                  </View>
-                </View>
+                <Image
+                  source={{ uri: profilePicture }}
+                  style={styles.fullProfileImage}
+                  resizeMode="cover"
+                />
               </View>
             </View>
             <Text style={styles.contactName}>{displayName || connection?.displayName || 'Connection'}</Text>
@@ -304,26 +293,12 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    flexDirection: 'row',
     overflow: 'hidden',
   },
-  profilePictureLeft: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  profilePictureRight: {
-    flex: 1,
-    backgroundColor: '#E0E7FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  halfProfileImage: {
-    width: '100%',
-    height: '100%',
+  fullProfileImage: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
   },
   contactName: {
     fontSize: 18,
