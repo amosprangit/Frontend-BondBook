@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
   },
   loginButtonText: {
-    color: '#ffffff',
+    color: '#000000',
     fontSize: 18,
     fontWeight: 'bold',
   },

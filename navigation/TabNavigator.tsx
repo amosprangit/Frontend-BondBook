@@ -7,15 +7,16 @@ import { useGetNotificationCountQuery } from '../store/api/notificationApi';
 // Import screens
 import HomeScreen from '../screens/home';
 import ChatListScreen from '../screens/chatList';
-import ChatScreen from '../screens/chat';
 import CameraScreen from '../screens/camera';
 import NotificationScreen from '../screens/notifications';
 import ProfileScreen from '../screens/profile';
 
 const Tab = createBottomTabNavigator();
 
-// Custom tab bar icon component with badge support
+
+// Custom tab icon component
 const TabIcon = ({ name, color, size, isFocused, type = 'entypo', badgeCount = 0 }: any) => {
+
   const getIconComponent = () => {
     switch (type) {
       case 'entypo':
@@ -33,7 +34,9 @@ const TabIcon = ({ name, color, size, isFocused, type = 'entypo', badgeCount = 0
 
   return (
     <View style={styles.iconContainer}>
+
       {getIconComponent()}
+
       {badgeCount > 0 && (
         <View style={styles.badgeContainer}>
           <Text style={styles.badgeText}>
@@ -41,45 +44,56 @@ const TabIcon = ({ name, color, size, isFocused, type = 'entypo', badgeCount = 0
           </Text>
         </View>
       )}
-      {isFocused && <View style={[styles.activeIndicator, { backgroundColor: color }]} />}
+
+      {isFocused && <View style={styles.activeIndicator} />}
+
     </View>
   );
 };
 
+
+
 export default function TabNavigator() {
-  // Fetch notification count with polling every 30 seconds
+
+  // Fetch notification count every 30 seconds
   const { data: notificationCountData } = useGetNotificationCountQuery(undefined, {
-    pollingInterval: 30000, // Poll every 30 seconds
+    pollingInterval: 30000,
   });
 
   const unreadCount = notificationCountData?.unreadCount || 0;
 
+
   return (
+
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        tabBarShowLabel: false,
+
         tabBarStyle: {
+          position: 'absolute',
           backgroundColor: '#ffffff',
-          borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
-          height: 100,
-          paddingBottom: 8,
-          paddingTop: 8,
+          height: 90,
+          borderTopWidth: 0,
+
+          elevation: 10,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.08,
+          shadowRadius: 6,
         },
+
         tabBarActiveTintColor: '#8B5CF6',
         tabBarInactiveTintColor: '#9CA3AF',
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: 'bold',
-        },
       }}
     >
+
+      {/* Home */}
       <Tab.Screen
         name="HomeTab"
         component={HomeScreen}
         options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="home"
               color={color}
@@ -90,12 +104,15 @@ export default function TabNavigator() {
           ),
         }}
       />
+
+
+
+      {/* Chat */}
       <Tab.Screen
         name="ChatTab"
         component={ChatListScreen}
         options={{
-          tabBarLabel: 'Chat',
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="chat"
               color={color}
@@ -106,28 +123,35 @@ export default function TabNavigator() {
           ),
         }}
       />
+
+
+
+      {/* Camera Floating Button */}
       <Tab.Screen
         name="CameraTab"
         component={CameraScreen}
         options={{
-          tabBarLabel: 'Camera',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon
-              name="camera"
-              color={color}
-              size={24}
-              isFocused={focused}
-              type="entypo"
-            />
+          tabBarIcon: ({ focused }) => (
+            <View
+              style={[
+                styles.cameraButton,
+                { backgroundColor: focused ? '#8B5CF6' : '#A78BFA' },
+              ]}
+            >
+              <Entypo name="camera" size={26} color="#fff" />
+            </View>
           ),
         }}
       />
+
+
+
+      {/* Notifications */}
       <Tab.Screen
         name="NotificationTab"
         component={NotificationScreen}
         options={{
-          tabBarLabel: 'Notifications',
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="bell"
               color={color}
@@ -139,12 +163,15 @@ export default function TabNavigator() {
           ),
         }}
       />
+
+
+
+      {/* Profile */}
       <Tab.Screen
         name="ProfileTab"
         component={ProfileScreen}
         options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="user-circle-o"
               color={color}
@@ -155,40 +182,67 @@ export default function TabNavigator() {
           ),
         }}
       />
+
     </Tab.Navigator>
   );
 }
 
+
+
 const styles = StyleSheet.create({
+
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
+    width: 50,
+    height: 40,
   },
+
+
   activeIndicator: {
     position: 'absolute',
-    bottom: -20,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    bottom: -8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#8B5CF6',
   },
+
+
   badgeContainer: {
     position: 'absolute',
-    top: -6,
-    right: -10,
+    top: -4,
+    right: 1,
     backgroundColor: '#EF4444',
-    borderRadius: 10,
+    borderRadius: 12,
     minWidth: 18,
     height: 18,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: '#ffffff',
   },
+
+
   badgeText: {
-    color: '#ffffff',
+    color: '#fff',
     fontSize: 10,
     fontWeight: 'bold',
   },
+
+
+  cameraButton: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -25,
+
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+
 });
