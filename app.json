@@ -2,7 +2,7 @@
   "expo": {
     "name": "BondBook",
     "slug": "bondbook-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,6 +16,7 @@
       "supportsTablet": true
     },
     "android": {
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -29,7 +30,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "445c2ed3-62b5-4202-b340-bab531602782"
+        "projectId": "a39d44b0-1f69-4cc8-a9e5-084a031db408"
       }
     }
   }

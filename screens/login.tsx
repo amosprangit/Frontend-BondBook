@@ -27,10 +27,107 @@ const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
- const [login, { isLoading }] = useLoginMutation();
+
+  const [login, { isLoading }] = useLoginMutation();
   const dispatch = useAppDispatch();
 
+  // const handleLogin = async () => {
+  //   if (!email.trim() || !password.trim()) {
+  //     Toast.show({
+  //       type: 'error',
+  //       text1: 'Error',
+  //       text2: 'Please enter both email and password',
+  //     });
+  //     return;
+  //   }
+
+  //   try {
+  //     const result = await login({ email, password }).unwrap();
+  //   let token, user;
+
+  //     if (result.success && result.data) {
+  //       // Format 1: Wrapped response
+  //       token = result.data.token;
+  //       user = result.data.user;
+  //     } else if (result.token || result.user) {
+  //       // Format 2: Direct response
+  //       token = result.token;
+  //       user = result.user;
+  //     } else if (result.data && (result.data.token || result.data.user)) {
+  //       // Format 3: Data wrapper only
+  //       token = result.data.token;
+  //       user = result.data.user;
+  //     }
+
+  //     if (token && user) {
+  //       // Normalize user object - convert _id to id if needed
+  //       const normalizedUser = {
+  //         ...user,
+  //         id: user.id || user._id, // Use id if exists, otherwise use _id
+  //       };
+
+  //       // Save credentials to Redux store
+  //       dispatch(setCredentials({
+  //         user: normalizedUser,
+  //         token: token,
+  //       }));
+
+  //       // Reset all API caches to ensure fresh data for new user
+  //       dispatch(authApi.util.resetApiState());
+  //       dispatch(postsApi.util.resetApiState());
+  //       dispatch(storiesApi.util.resetApiState());
+
+  //       // Save token and user to AsyncStorage for persistence
+  //       try {
+  //         await AsyncStorage.setItem('userToken', token);
+  //         await AsyncStorage.setItem('userData', JSON.stringify(normalizedUser));
+  //       } catch (storageError) {
+  //         console.error('Error saving to AsyncStorage:', storageError);
+  //       }
+
+  //       Toast.show({
+  //         type: 'success',
+  //         text1: 'Success',
+  //         text2: 'Login successful!',
+  //       });
+
+  //       // Navigate to Home and reset navigation stack to prevent back navigation
+  //       navigation.dispatch(
+  //         CommonActions.reset({
+  //           index: 0,
+  //           routes: [{ name: 'Home' }],
+  //         })
+  //       );
+  //     } else {
+  //       console.log(result,"error");
+  //       Toast.show({
+  //         type: 'error',
+  //         text1: 'Login Failed',
+  //         text2: result.message || 'Invalid credentials',
+  //       });
+  //     }
+  //   } catch (error: any) {
+
+  //     console.error('Login error:', error);
+  //     console.error('Error details:', JSON.stringify(error, null, 2));
+
+  //     let errorMessage = 'An error occurred during login. Please try again.';
+
+  //     if (error?.data?.message) {
+  //       errorMessage = error.data.message;
+  //     } else if (error?.message) {
+  //       errorMessage = error.message;
+  //     } else if (error?.status) {
+  //       errorMessage = `Server error: ${error.status}`;
+  //     }
+
+  //     Toast.show({
+  //       type: 'error',
+  //       text1: 'Login Error',
+  //       text2: errorMessage,
+  //     });
+  //   }
+  // };
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       Toast.show({
@@ -43,55 +140,51 @@ const LoginScreen = ({ navigation }: any) => {
 
     try {
       const result = await login({ email, password }).unwrap();
-    let token, user;
-      
-      if (result.success && result.data) {
-        // Format 1: Wrapped response
-        token = result.data.token;
-        user = result.data.user;
-      } else if (result.token || result.user) {
-        // Format 2: Direct response
+      let token, user;
+
+      // ✅ FIXED EXTRACTION LOGIC: Grabs token/user wherever they hide!
+      if (result.token && result.user) {
         token = result.token;
         user = result.user;
-      } else if (result.data && (result.data.token || result.data.user)) {
-        // Format 3: Data wrapper only
+      } else if (result.data?.token && result.data?.user) {
         token = result.data.token;
         user = result.data.user;
       }
-      
+
       if (token && user) {
-        // Normalize user object - convert _id to id if needed
         const normalizedUser = {
           ...user,
-          id: user.id || user._id, // Use id if exists, otherwise use _id
+          id: user.id || user._id,
         };
-        
+
         // Save credentials to Redux store
-        dispatch(setCredentials({
-          user: normalizedUser,
-          token: token,
-        }));
-        
-        // Reset all API caches to ensure fresh data for new user
+        dispatch(
+          setCredentials({
+            user: normalizedUser,
+            token: token,
+          })
+        );
+
+        // Reset all API caches
         dispatch(authApi.util.resetApiState());
         dispatch(postsApi.util.resetApiState());
         dispatch(storiesApi.util.resetApiState());
-        
-        // Save token and user to AsyncStorage for persistence
+
+        // Save to AsyncStorage for app persistence
         try {
           await AsyncStorage.setItem('userToken', token);
           await AsyncStorage.setItem('userData', JSON.stringify(normalizedUser));
         } catch (storageError) {
           console.error('Error saving to AsyncStorage:', storageError);
         }
-        
+
         Toast.show({
           type: 'success',
           text1: 'Success',
           text2: 'Login successful!',
         });
-        
-        // Navigate to Home and reset navigation stack to prevent back navigation
+
+        // Navigate to Home and reset navigation stack
         navigation.dispatch(
           CommonActions.reset({
             index: 0,
@@ -99,28 +192,23 @@ const LoginScreen = ({ navigation }: any) => {
           })
         );
       } else {
-        console.log(result,"error");
+        console.log('Parsing fallback triggered. Result data:', result);
         Toast.show({
           type: 'error',
           text1: 'Login Failed',
-          text2: result.message || 'Invalid credentials',
+          text2: result.message || 'Unable to parse user credentials.',
         });
       }
     } catch (error: any) {
-      
       console.error('Login error:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
-      
       let errorMessage = 'An error occurred during login. Please try again.';
-      
+
       if (error?.data?.message) {
         errorMessage = error.data.message;
       } else if (error?.message) {
         errorMessage = error.message;
-      } else if (error?.status) {
-        errorMessage = `Server error: ${error.status}`;
       }
-      
+
       Toast.show({
         type: 'error',
         text1: 'Login Error',
@@ -129,15 +217,14 @@ const LoginScreen = ({ navigation }: any) => {
     }
   };
 
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
+
       <View style={styles.content}>
         {/* BondBook Logo with Gradient */}
         <View style={styles.logoContainer}>
-          <Image source={require('../assets/images/logo.png')} resizeMode='contain' style={{width: 150, height: 150}} />
+          <Image source={require('../assets/images/logo.png')} resizeMode='contain' style={{ width: 150, height: 150 }} />
         </View>
 
         {/* Input Fields */}
@@ -151,7 +238,7 @@ const LoginScreen = ({ navigation }: any) => {
             keyboardType="email-address"
             autoCapitalize="none"
           />
-          
+
           <View style={styles.passwordContainer}>
             <TextInput
               style={styles.passwordInput}
@@ -171,7 +258,7 @@ const LoginScreen = ({ navigation }: any) => {
         </View>
 
         {/* Forgot Password Link */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.forgotPasswordContainer}
           onPress={() => navigation.navigate('ForgotPassword')}
         >
@@ -179,8 +266,8 @@ const LoginScreen = ({ navigation }: any) => {
         </TouchableOpacity>
 
         {/* Login Button */}
-        <TouchableOpacity 
-          style={[styles.loginButton, isLoading && styles.loginButtonDisabled]} 
+        <TouchableOpacity
+          style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
           onPress={handleLogin}
           disabled={isLoading}
         >
@@ -190,7 +277,7 @@ const LoginScreen = ({ navigation }: any) => {
         </TouchableOpacity>
 
         {/* Create New Account Link */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.createAccountContainer}
           onPress={() => navigation.navigate('Register')}
         >
