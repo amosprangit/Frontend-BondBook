@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,16 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Entypo, Ionicons } from '@expo/vector-icons';
+import { Entypo, Ionicons, Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useRegisterMutation, useVerifyOtpMutation, useResendOtpMutation } from '../store/api/authApi';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../store/slices/authSlice';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -31,10 +34,79 @@ const RegisterScreen = ({ navigation }: any) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showOtpScreen, setShowOtpScreen] = useState(false);
   const [otp, setOtp] = useState('');
-  
+
+  // Focus states
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  const logoScale = useRef(new Animated.Value(0.8)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const otpSlideAnim = useRef(new Animated.Value(0)).current;
+
   const [register, { isLoading }] = useRegisterMutation();
   const [verifyOtp, { isLoading: isVerifying }] = useVerifyOtpMutation();
   const [resendOtp, { isLoading: isResending }] = useResendOtpMutation();
+
+  // Entry animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(logoScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.timing(logoOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Shimmer animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  // OTP screen transition animation
+  useEffect(() => {
+    if (showOtpScreen) {
+      Animated.spring(otpSlideAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      otpSlideAnim.setValue(0);
+    }
+  }, [showOtpScreen]);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -88,23 +160,34 @@ const RegisterScreen = ({ navigation }: any) => {
       return;
     }
 
+    // Button press animation
+    Animated.sequence([
+      Animated.spring(buttonScale, {
+        toValue: 0.95,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     try {
-      const result = await register({ 
-        username: username.trim(), 
-        email: email.trim().toLowerCase(), 
-        password 
+      const result = await register({
+        username: username.trim(),
+        email: email.trim().toLowerCase(),
+        password
       }).unwrap();
-      
-      console.log('Registration result:', result);
-      
+
       if (result.success) {
         Toast.show({
           type: 'success',
           text1: 'Success',
           text2: result.message || 'OTP sent to your email!',
         });
-        
-        // Show OTP verification screen
+
         setShowOtpScreen(true);
       } else {
         Toast.show({
@@ -114,11 +197,8 @@ const RegisterScreen = ({ navigation }: any) => {
         });
       }
     } catch (error: any) {
-      console.error('Registration error:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
-      
       let errorMessage = 'An error occurred during registration. Please try again.';
-      
+
       if (error?.data?.message) {
         errorMessage = error.data.message;
       } else if (error?.message) {
@@ -126,7 +206,7 @@ const RegisterScreen = ({ navigation }: any) => {
       } else if (error?.status) {
         errorMessage = `Server error: ${error.status}`;
       }
-      
+
       Toast.show({
         type: 'error',
         text1: 'Registration Error',
@@ -155,29 +235,25 @@ const RegisterScreen = ({ navigation }: any) => {
     }
 
     try {
-      const result = await verifyOtp({ 
-        email: email.trim().toLowerCase(), 
-        otp: otp.trim() 
+      const result = await verifyOtp({
+        email: email.trim().toLowerCase(),
+        otp: otp.trim()
       }).unwrap();
-      
-      console.log('OTP Verification result:', result);
-      
+
       if (result.success) {
         Toast.show({
           type: 'success',
           text1: 'Success',
           text2: result.message || 'Account verified successfully!',
         });
-        
-        // Store token and user data if provided
+
         if (result.data?.token && result.data?.user) {
           dispatch(setCredentials({
             token: result.data.token,
             user: result.data.user,
           }));
         }
-        
-        // Navigate to login or home screen
+
         setTimeout(() => {
           navigation.navigate('Login');
         }, 1500);
@@ -189,16 +265,14 @@ const RegisterScreen = ({ navigation }: any) => {
         });
       }
     } catch (error: any) {
-      console.error('OTP Verification error:', error);
-      
       let errorMessage = 'An error occurred during verification. Please try again.';
-      
+
       if (error?.data?.message) {
         errorMessage = error.data.message;
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       Toast.show({
         type: 'error',
         text1: 'Verification Error',
@@ -209,12 +283,10 @@ const RegisterScreen = ({ navigation }: any) => {
 
   const handleResendOtp = async () => {
     try {
-      const result = await resendOtp({ 
-        email: email.trim().toLowerCase() 
+      const result = await resendOtp({
+        email: email.trim().toLowerCase()
       }).unwrap();
-      
-      console.log('Resend OTP result:', result);
-      
+
       if (result.success) {
         Toast.show({
           type: 'success',
@@ -229,16 +301,14 @@ const RegisterScreen = ({ navigation }: any) => {
         });
       }
     } catch (error: any) {
-      console.error('Resend OTP error:', error);
-      
       let errorMessage = 'Failed to resend OTP. Please try again.';
-      
+
       if (error?.data?.message) {
         errorMessage = error.data.message;
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       Toast.show({
         type: 'error',
         text1: 'Error',
@@ -248,319 +318,465 @@ const RegisterScreen = ({ navigation }: any) => {
   };
 
   const handleBackToRegister = () => {
-    setShowOtpScreen(false);
-    setOtp('');
+    Animated.timing(otpSlideAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowOtpScreen(false);
+      setOtp('');
+    });
+  };
+
+  const shimmerTranslate = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-width, width],
+  });
+
+  const otpTransform = {
+    transform: [
+      {
+        translateX: otpSlideAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [width, 0],
+        }),
+      },
+    ],
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+    <LinearGradient
+      colors={['#ffffff', '#f8f4ff', '#f0eaff']}
+      style={styles.gradientBackground}
+    >
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
         >
-          {/* Back Button */}
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={showOtpScreen ? handleBackToRegister : () => navigation.goBack()}
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            <Ionicons name="arrow-back" size={24} color="#8B5CF6" />
-          </TouchableOpacity>
+            {/* Back Button */}
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={showOtpScreen ? handleBackToRegister : () => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={['#f3e8ff', '#e9d5ff']}
+                style={styles.backButtonGradient}
+              >
+                <Ionicons name="arrow-back" size={24} color="#8B5CF6" />
+              </LinearGradient>
+            </TouchableOpacity>
 
-          {/* BondBook Logo */}
-          <View style={styles.logoContainer}>
-            <Image 
-              source={require('../assets/images/logo.png')} 
-              resizeMode='contain' 
-              style={styles.logo} 
-            />
-            <Text style={styles.titleText}>{showOtpScreen ? 'Verify OTP' : 'Create Account'}</Text>
-            <Text style={styles.subtitleText}>
-              {showOtpScreen ? `Enter the 6-digit code sent to ${email}` : 'Join BondBook today'}
-            </Text>
-          </View>
-
-          {/* Input Fields */}
-          {!showOtpScreen ? (
-            <>
-              <View style={styles.inputContainer}>
-                {/* Username Input */}
-                <View style={styles.inputWrapper}>
-                  <Entypo name="user" size={20} color="#8B5CF6" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Username"
-                    placeholderTextColor="#8E8E93"
-                    value={username}
-                    onChangeText={setUsername}
-                    autoCapitalize="none"
+            {/* Animated Logo Section */}
+            <Animated.View
+              style={[
+                styles.logoContainer,
+                {
+                  opacity: logoOpacity,
+                  transform: [{ scale: logoScale }],
+                },
+              ]}
+            >
+              <View style={styles.logoWrapper}>
+                <LinearGradient
+                  colors={['#8B5CF6', '#C084FC', '#A855F7']}
+                  style={styles.logoGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Image
+                    source={require('../assets/images/logo.png')}
+                    resizeMode='contain'
+                    style={styles.logo}
                   />
-                </View>
-
-                {/* Email Input */}
-                <View style={styles.inputWrapper}>
-                  <Entypo name="mail" size={20} color="#8B5CF6" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    placeholderTextColor="#8E8E93"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-                
-                {/* Password Input */}
-                <View style={styles.passwordContainer}>
-                  <Entypo name="lock" size={20} color="#8B5CF6" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.passwordInput}
-                    placeholder="Password"
-                    placeholderTextColor="#8E8E93"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeIcon}
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    <Entypo name={showPassword ? "eye" : "eye-with-line"} size={20} color="#8B5CF6" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Confirm Password Input */}
-                <View style={styles.passwordContainer}>
-                  <Entypo name="lock" size={20} color="#8B5CF6" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.passwordInput}
-                    placeholder="Confirm Password"
-                    placeholderTextColor="#8E8E93"
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!showConfirmPassword}
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeIcon}
-                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    <Entypo name={showConfirmPassword ? "eye" : "eye-with-line"} size={20} color="#8B5CF6" />
-                  </TouchableOpacity>
-                </View>
+                </LinearGradient>
               </View>
+              <Animated.Text style={[styles.titleText, { opacity: fadeAnim }]}>
+                {showOtpScreen ? 'Verify OTP' : 'Create Account'}
+              </Animated.Text>
+              <Animated.Text style={[styles.subtitleText, { opacity: fadeAnim }]}>
+                {showOtpScreen ? `Enter the 6-digit code sent to ${email}` : 'Join BondBook today'}
+              </Animated.Text>
+            </Animated.View>
 
-              {/* Register Button */}
-              <TouchableOpacity 
-                style={[styles.registerButton, isLoading && styles.registerButtonDisabled]} 
-                onPress={handleRegister}
-                disabled={isLoading}
+            {/* Input Fields with Animation */}
+            <Animated.View
+              style={[
+                styles.inputSection,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              {!showOtpScreen ? (
+                <>
+                  {/* Username Input */}
+                  <View style={styles.inputWrapper}>
+                    <View style={[styles.inputIcon, focusedField === 'username' && styles.inputIconFocused]}>
+                      <Feather name="user" size={18} color={focusedField === 'username' ? '#8B5CF6' : '#9CA3AF'} />
+                    </View>
+                    <TextInput
+                      style={[styles.input, focusedField === 'username' && styles.inputFocused]}
+                      placeholder="Username"
+                      placeholderTextColor="#9CA3AF"
+                      value={username}
+                      onChangeText={setUsername}
+                      onFocus={() => setFocusedField('username')}
+                      onBlur={() => setFocusedField(null)}
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  {/* Email Input */}
+                  <View style={styles.inputWrapper}>
+                    <View style={[styles.inputIcon, focusedField === 'email' && styles.inputIconFocused]}>
+                      <Feather name="mail" size={18} color={focusedField === 'email' ? '#8B5CF6' : '#9CA3AF'} />
+                    </View>
+                    <TextInput
+                      style={[styles.input, focusedField === 'email' && styles.inputFocused]}
+                      placeholder="Email address"
+                      placeholderTextColor="#9CA3AF"
+                      value={email}
+                      onChangeText={setEmail}
+                      onFocus={() => setFocusedField('email')}
+                      onBlur={() => setFocusedField(null)}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  {/* Password Input */}
+                  <View style={styles.inputWrapper}>
+                    <View style={[styles.inputIcon, focusedField === 'password' && styles.inputIconFocused]}>
+                      <Feather name="lock" size={18} color={focusedField === 'password' ? '#8B5CF6' : '#9CA3AF'} />
+                    </View>
+                    <TextInput
+                      style={[styles.input, focusedField === 'password' && styles.inputFocused, { paddingRight: 50 }]}
+                      placeholder="Password"
+                      placeholderTextColor="#9CA3AF"
+                      value={password}
+                      onChangeText={setPassword}
+                      onFocus={() => setFocusedField('password')}
+                      onBlur={() => setFocusedField(null)}
+                      secureTextEntry={!showPassword}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeIcon}
+                      onPress={() => setShowPassword(!showPassword)}
+                    >
+                      <Entypo name={showPassword ? "eye" : "eye-with-line"} size={20} color="#8B5CF6" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Confirm Password Input */}
+                  <View style={styles.inputWrapper}>
+                    <View style={[styles.inputIcon, focusedField === 'confirmPassword' && styles.inputIconFocused]}>
+                      <Feather name="check-circle" size={18} color={focusedField === 'confirmPassword' ? '#8B5CF6' : '#9CA3AF'} />
+                    </View>
+                    <TextInput
+                      style={[styles.input, focusedField === 'confirmPassword' && styles.inputFocused, { paddingRight: 50 }]}
+                      placeholder="Confirm Password"
+                      placeholderTextColor="#9CA3AF"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      onFocus={() => setFocusedField('confirmPassword')}
+                      onBlur={() => setFocusedField(null)}
+                      secureTextEntry={!showConfirmPassword}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeIcon}
+                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      <Entypo name={showConfirmPassword ? "eye" : "eye-with-line"} size={20} color="#8B5CF6" />
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <Animated.View style={otpTransform}>
+                  {/* OTP Input */}
+                  <View style={styles.inputWrapper}>
+                    <View style={[styles.inputIcon, focusedField === 'otp' && styles.inputIconFocused]}>
+                      <Feather name="key" size={18} color={focusedField === 'otp' ? '#8B5CF6' : '#9CA3AF'} />
+                    </View>
+                    <TextInput
+                      style={[styles.input, focusedField === 'otp' && styles.inputFocused]}
+                      placeholder="Enter 6-digit OTP"
+                      placeholderTextColor="#9CA3AF"
+                      value={otp}
+                      onChangeText={setOtp}
+                      onFocus={() => setFocusedField('otp')}
+                      onBlur={() => setFocusedField(null)}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      autoFocus
+                    />
+                  </View>
+                </Animated.View>
+              )}
+            </Animated.View>
+
+            {/* Action Button with Animation */}
+            <Animated.View
+              style={[
+                styles.buttonContainer,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }, { scale: buttonScale }],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={!showOtpScreen ? handleRegister : handleVerifyOtp}
+                disabled={isLoading || isVerifying}
               >
-                <Text style={styles.registerButtonText}>
-                  {isLoading ? 'Creating Account...' : 'Create Account'}
-                </Text>
+                <LinearGradient
+                  colors={isLoading || isVerifying ? ['#C4B5FD', '#C4B5FD'] : ['#8B5CF6', '#A855F7', '#C084FC']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.registerButton, (isLoading || isVerifying) && styles.registerButtonDisabled]}
+                >
+                  {isLoading || isVerifying ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <Text style={styles.registerButtonText}>
+                      {!showOtpScreen ? 'Create Account' : 'Verify OTP'}
+                    </Text>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              {/* OTP Input */}
-              <View style={styles.otpContainer}>
-                <View style={styles.inputWrapper}>
-                  <Entypo name="key" size={20} color="#8B5CF6" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter 6-digit OTP"
-                    placeholderTextColor="#8E8E93"
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    autoFocus
-                  />
-                </View>
-              </View>
+            </Animated.View>
 
-              {/* Verify Button */}
-              <TouchableOpacity 
-                style={[styles.registerButton, isVerifying && styles.registerButtonDisabled]} 
-                onPress={handleVerifyOtp}
-                disabled={isVerifying}
+            {/* Resend OTP (only for OTP screen) */}
+            {showOtpScreen && (
+              <Animated.View
+                style={[
+                  styles.resendContainer,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                  },
+                ]}
               >
-                <Text style={styles.registerButtonText}>
-                  {isVerifying ? 'Verifying...' : 'Verify OTP'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Resend OTP */}
-              <TouchableOpacity 
-                style={styles.resendContainer}
-                onPress={handleResendOtp}
-                disabled={isResending}
-              >
-                <Text style={styles.resendText}>
-                  Didn't receive the code? <Text style={styles.resendBold}>
-                    {isResending ? 'Resending...' : 'Resend OTP'}
+                <TouchableOpacity
+                  onPress={handleResendOtp}
+                  disabled={isResending}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.resendText}>
+                    Didn't receive the code?{' '}
+                    <Text style={styles.resendBold}>
+                      {isResending ? 'Resending...' : 'Resend OTP'}
+                    </Text>
                   </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+
+            {/* Login Link */}
+            <Animated.View
+              style={[
+                styles.loginLinkContainer,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Login')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.loginLinkText}>
+                  Already have an account?{' '}
+                  <Text style={styles.loginLinkBold}>Login</Text>
                 </Text>
               </TouchableOpacity>
-            </>
-          )}
+            </Animated.View>
 
-          {/* Already Have Account Link */}
-          <TouchableOpacity 
-            style={styles.loginLinkContainer}
-            onPress={() => navigation.navigate('Login')}
-          >
-            <Text style={styles.loginLinkText}>
-              Already have an account? <Text style={styles.loginLinkBold}>Login</Text>
-            </Text>
-          </TouchableOpacity>
+            {/* Footer */}
+            <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
+              <Text style={styles.poweredByText}>Powered by</Text>
+              <LinearGradient
+                colors={['#8B5CF6', '#C084FC']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.mbdGradient}
+              >
+                <Text style={styles.mbdText}>M_BD</Text>
+              </LinearGradient>
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
 
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.poweredByText}>Powered by</Text>
-            <Text style={styles.mbdText}>M_BD</Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        {/* Shimmer Effect Overlay */}
+        <Animated.View
+          style={[
+            styles.shimmerOverlay,
+            {
+              transform: [{ translateX: shimmerTranslate }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={['transparent', 'rgba(255,255,255,0.4)', 'transparent']}
+            style={styles.shimmerGradient}
+          />
+        </Animated.View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
+  gradientBackground: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 30,
-    paddingTop: 20,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'ios' ? 40 : 20,
     paddingBottom: 30,
   },
   backButton: {
     width: 40,
     height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  backButtonGradient: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
   },
   logoContainer: {
     alignItems: 'center',
     marginBottom: 30,
   },
+  logoWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 30,
+    overflow: 'hidden',
+    marginBottom: 16,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  logoGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   logo: {
-    width: 120,
-    height: 120,
+    width: 70,
+    height: 70,
   },
   titleText: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#8B5CF6',
+    fontWeight: '800',
+    color: '#7C3AED',
     marginTop: 10,
+    letterSpacing: 1,
+    textShadowColor: 'rgba(139, 92, 246, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
   subtitleText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#6B7280',
     marginTop: 5,
-    fontWeight: 'bold',
+    fontWeight: '500',
+    letterSpacing: 0.5,
   },
-  inputContainer: {
-    marginBottom: 20,
+  inputSection: {
+    marginTop: 10,
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 50,
-    borderWidth: 1.5,
-    borderColor: '#8B5CF6',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    marginBottom: 15,
-    backgroundColor: '#ffffff',
-    shadowColor: '#8B5CF6',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    position: 'relative',
+    marginBottom: 16,
   },
   inputIcon: {
-    marginRight: 10,
+    position: 'absolute',
+    left: 16,
+    top: 17,
+    zIndex: 1,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inputIconFocused: {
+    transform: [{ scale: 1.1 }],
   },
   input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000000',
-  },
-  passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-    marginBottom: 15,
-    height: 50,
+    height: 54,
     borderWidth: 1.5,
-    borderColor: '#8B5CF6',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    backgroundColor: '#ffffff',
-    shadowColor: '#8B5CF6',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  passwordInput: {
-    flex: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    paddingHorizontal: 48,
     fontSize: 16,
-    color: '#000000',
-    paddingRight: 40,
+    backgroundColor: '#ffffff',
+    color: '#1F2937',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  inputFocused: {
+    borderColor: '#8B5CF6',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   eyeIcon: {
     position: 'absolute',
-    right: 20,
-    padding: 6,
+    right: 16,
+    top: 17,
+    padding: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  buttonContainer: {
+    marginBottom: 20,
+  },
   registerButton: {
-    backgroundColor: '#8B5CF6',
-    height: 50,
-    borderRadius: 25,
+    height: 54,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    overflow: 'hidden',
     shadowColor: '#8B5CF6',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 12,
     elevation: 8,
   },
   registerButtonDisabled: {
-    backgroundColor: '#C4B5FD',
     shadowOpacity: 0.1,
   },
   registerButtonText: {
     color: '#ffffff',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   loginLinkContainer: {
     alignItems: 'center',
@@ -569,29 +785,31 @@ const styles = StyleSheet.create({
   loginLinkText: {
     color: '#6B7280',
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '500',
   },
   loginLinkBold: {
-    color: '#3B82F6',
-    fontWeight: 'bold',
+    color: '#8B5CF6',
+    fontWeight: '700',
   },
   footer: {
     alignItems: 'center',
     marginTop: 20,
   },
   poweredByText: {
-    color: '#6B7280',
+    color: '#9CA3AF',
     fontSize: 12,
-    marginBottom: 2,
-    fontWeight: 'bold',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  mbdGradient: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
   mbdText: {
-    color: '#000000',
+    color: '#8B5CF6',
     fontSize: 16,
-    fontWeight: 'bold',
-  },
-  otpContainer: {
-    marginBottom: 20,
+    fontWeight: '800',
   },
   resendContainer: {
     alignItems: 'center',
@@ -600,11 +818,23 @@ const styles = StyleSheet.create({
   resendText: {
     color: '#6B7280',
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '500',
   },
   resendBold: {
     color: '#8B5CF6',
-    fontWeight: 'bold',
+    fontWeight: '700',
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
+  },
+  shimmerGradient: {
+    width: width * 0.5,
+    height: '100%',
   },
 });
 
