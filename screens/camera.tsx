@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  StatusBar, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  StatusBar,
   TouchableOpacity,
   Dimensions,
   ScrollView,
@@ -14,11 +14,12 @@ import {
   TextInput,
   ActivityIndicator
 } from 'react-native';
-import { Entypo, Ionicons } from '@expo/vector-icons';
+import { Entypo, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import { useCreatePostMutation } from '../store/api/postsApi';
 import Toast from 'react-native-toast-message';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,29 +27,50 @@ interface Filter {
   id: string;
   name: string;
   value: string;
+  icon: string;
 }
 
-export default function CameraScreen() {
+export default function CameraScreen({ navigation }: any) {
   const [selectedFilter, setSelectedFilter] = useState('normal');
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
+  const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaLibraryPermission, requestMediaLibraryPermission] = MediaLibrary.usePermissions();
   const cameraRef = useRef<CameraView>(null);
-  
+
   // Publish modal state
   const [publishModalVisible, setPublishModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [createPost, { isLoading: isCreatingPost }] = useCreatePostMutation();
 
+  // Hide bottom tab bar when camera screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      const parent = navigation.getParent();
+      if (parent) {
+        parent.setOptions({
+          tabBarStyle: { display: 'none' }
+        });
+      }
+      return () => {
+        if (parent) {
+          parent.setOptions({
+            tabBarStyle: { display: 'flex' }
+          });
+        }
+      };
+    }, [navigation])
+  );
+
   const filters: Filter[] = [
-    { id: 'normal', name: 'Normal', value: 'none' },
-    { id: 'sepia', name: 'Sepia', value: 'sepia(1)' },
-    { id: 'grayscale', name: 'Grayscale', value: 'grayscale(1)' },
-    { id: 'blur', name: 'Blur', value: 'blur(2px)' },
-    { id: 'brightness', name: 'Bright', value: 'brightness(1.5)' },
+    { id: 'normal', name: 'Normal', value: 'none', icon: 'camera-alt' },
+    { id: 'sepia', name: 'Sepia', value: 'sepia(1)', icon: 'wb-sunny' },
+    { id: 'grayscale', name: 'Grayscale', value: 'grayscale(1)', icon: 'tonality' },
+    { id: 'blur', name: 'Blur', value: 'blur(2px)', icon: 'blur-on' },
+    { id: 'brightness', name: 'Bright', value: 'brightness(1.5)', icon: 'brightness-5' },
   ];
 
   useEffect(() => {
@@ -63,28 +85,23 @@ export default function CameraScreen() {
   const takePicture = async () => {
     if (cameraRef.current && isCameraReady) {
       try {
-        // Works for both front and back camera
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.8,
+          quality: 0.9,
           base64: false,
-          skipProcessing: false, // Ensure image processing for both cameras
+          skipProcessing: false,
         });
-        
+
         if (photo?.uri) {
-          // Store captured image (works for both front and back camera)
-          setCapturedImages(prev => [photo.uri, ...prev.slice(0, 4)]); // Keep only last 5 images
-          
-          // Save to media library (works for both cameras)
+          setCapturedImages(prev => [photo.uri, ...prev.slice(0, 4)]);
+
           if (mediaLibraryPermission?.granted) {
             try {
               await MediaLibrary.saveToLibraryAsync(photo.uri);
             } catch (saveError) {
               console.warn('Failed to save to media library:', saveError);
-              // Continue even if save fails
             }
           }
-          
-          // Show publish modal with the captured image (front or back camera)
+
           setSelectedImage(photo.uri);
           setPublishModalVisible(true);
         } else {
@@ -93,10 +110,6 @@ export default function CameraScreen() {
       } catch (error) {
         Alert.alert('Error', 'Failed to take picture');
         console.error('Error taking picture:', error);
-      }
-    } else {
-      if (!isCameraReady) {
-        Alert.alert('Camera Not Ready', 'Please wait for the camera to be ready');
       }
     }
   };
@@ -112,31 +125,27 @@ export default function CameraScreen() {
     }
 
     try {
-      // Create FormData - works for both front and back camera images
       const formData = new FormData();
-      
-      // Image URI from takePictureAsync is already properly formatted for both cameras
       formData.append('image', {
         uri: selectedImage,
         type: 'image/jpeg',
-        name: `post_${Date.now()}.jpg`, // Unique filename
+        name: `post_${Date.now()}.jpg`,
       } as any);
       formData.append('caption', caption || '');
 
-      // Create post (works identically for front and back camera photos)
       const response = await createPost(formData).unwrap();
-      
+
       if (response.success) {
         Toast.show({
           type: 'success',
           text1: 'Success',
           text2: 'Post published successfully!',
         });
-        // Close modal and reset
         setPublishModalVisible(false);
         setSelectedImage(null);
         setCaption('');
-        // Optionally clear captured images or keep them for reference
+        // Navigate back to home feed
+        navigation.navigate('Home' as never);
       }
     } catch (error: any) {
       console.error('Publish post error:', error);
@@ -160,57 +169,136 @@ export default function CameraScreen() {
 
   const toggleCameraFacing = () => {
     setCameraFacing(current => (current === 'back' ? 'front' : 'back'));
-    setIsCameraReady(false); // Reset camera ready state when switching
+    setIsCameraReady(false);
+  };
+
+  const toggleFlash = () => {
+    setFlashMode(current => {
+      if (current === 'off') return 'on';
+      if (current === 'on') return 'auto';
+      return 'off';
+    });
+  };
+
+  const getFlashIcon = () => {
+    switch (flashMode) {
+      case 'on': return 'flash-on';
+      case 'auto': return 'flash-auto';
+      default: return 'flash-off';
+    }
+  };
+
+  const goToGallery = () => {
+    // Navigate to gallery screen or open image picker
+    Alert.alert('Coming Soon', 'Gallery feature will be available soon');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
-      
-      {/* Top Section */}
-      <View style={styles.topSection}>
-        <View style={styles.topLeft}>
-          <TouchableOpacity 
-            style={styles.rotateButton}
-            onPress={toggleCameraFacing}
-          >
-            <View style={styles.rotateIconContainer}>
-              <Entypo name="cycle" size={20} color="#E91E63" />
-            </View>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.topRight}>
-          <View style={styles.abIndicatorContainer}>
-            <Text style={[styles.abIndicator, cameraFacing === 'front' && styles.abIndicatorActive]}>
-              F
-            </Text>
-            <Text style={[styles.abIndicator, cameraFacing === 'back' && styles.abIndicatorActive]}>
-              B
-            </Text>
-          </View>
-        </View>
-      </View>
 
-      {/* Main Camera Area */}
-      <View style={styles.cameraArea}>
+      {/* Camera View */}
+      <View style={styles.cameraWrapper}>
         {permission?.granted ? (
-          <View style={styles.cameraContainer}>
-            <CameraView
-              ref={cameraRef}
-              style={styles.camera}
-              facing={cameraFacing}
-              onCameraReady={handleCameraReady}
-            >
-              {/* Camera Overlay */}
-              
-              <View style={styles.cameraOverlay}>
-                {/* Filter Overlay */}
-                <View style={[styles.filterOverlay, { filter: filters.find(f => f.id === selectedFilter)?.value }]} />
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing={cameraFacing}
+            flash={flashMode}
+            onCameraReady={handleCameraReady}
+          >
+            {/* Top Bar */}
+            <View style={styles.topBar}>
+              <TouchableOpacity
+                style={styles.topBarButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Ionicons name="close" size={28} color="#ffffff" />
+              </TouchableOpacity>
+              <View style={styles.topBarRight}>
+                <TouchableOpacity
+                  style={styles.topBarButton}
+                  onPress={toggleFlash}
+                >
+                  <MaterialIcons name={getFlashIcon()} size={24} color="#ffffff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.topBarButton}
+                  onPress={toggleCameraFacing}
+                >
+                  <MaterialIcons name="flip-camera-ios" size={26} color="#ffffff" />
+                </TouchableOpacity>
               </View>
-            </CameraView>
-          </View>
+            </View>
+
+            {/* Filters Bar */}
+            <View style={styles.filtersBar}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filtersScroll}
+              >
+                {filters.map((filter) => (
+                  <TouchableOpacity
+                    key={filter.id}
+                    style={[
+                      styles.filterButton,
+                      selectedFilter === filter.id && styles.filterButtonActive
+                    ]}
+                    onPress={() => setSelectedFilter(filter.id)}
+                  >
+                    <MaterialIcons
+                      name={filter.icon as any}
+                      size={20}
+                      color={selectedFilter === filter.id ? "#ffffff" : "#999999"}
+                    />
+                    <Text style={[
+                      styles.filterButtonText,
+                      selectedFilter === filter.id && styles.filterButtonTextActive
+                    ]}>
+                      {filter.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Bottom Bar */}
+            <View style={styles.bottomBar}>
+              <TouchableOpacity
+                style={styles.galleryButton}
+                onPress={goToGallery}
+              >
+                {capturedImages.length > 0 ? (
+                  <Image
+                    source={{ uri: capturedImages[0] }}
+                    style={styles.galleryThumbnail}
+                  />
+                ) : (
+                  <View style={styles.galleryPlaceholder}>
+                    <MaterialIcons name="photo-library" size={24} color="#ffffff" />
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.shutterButton}
+                onPress={takePicture}
+                disabled={!isCameraReady}
+              >
+                <View style={styles.shutterOuter}>
+                  <View style={styles.shutterInner} />
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.effectsButton}>
+                <MaterialIcons name="filter" size={28} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+          </CameraView>
         ) : (
           <View style={styles.permissionContainer}>
+            <MaterialIcons name="camera-alt" size={60} color="#999999" />
             <Text style={styles.permissionText}>Camera permission required</Text>
             <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
               <Text style={styles.permissionButtonText}>Grant Permission</Text>
@@ -219,54 +307,7 @@ export default function CameraScreen() {
         )}
       </View>
 
-      {/* Camera Controls */}
-      <View style={styles.cameraControls}>
-        {/* Captured Images Gallery */}
-        <View style={styles.capturedImagesContainer}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.capturedImagesScroll}
-          >
-            {capturedImages.length > 0 ? (
-              capturedImages.map((imageUri, index) => (
-                <TouchableOpacity key={index} style={styles.capturedImageThumbnail}>
-                  <Image source={{ uri: imageUri }} style={styles.capturedImage} />
-                </TouchableOpacity>
-              ))
-            ) : (
-              <View style={styles.placeholderThumbnail}>
-                <Text style={styles.placeholderText}>No photos</Text>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-
-        {/* Shutter Button */}
-        <TouchableOpacity 
-          style={styles.shutterButton} 
-          onPress={takePicture}
-          disabled={!isCameraReady}
-        >
-          <View style={styles.shutterOuter}>
-            <View style={styles.shutterInner} />
-          </View>
-        </TouchableOpacity>
-
-        {/* Photo Thumbnails */}
-        <View style={styles.photoThumbnails}>
-          <TouchableOpacity style={styles.smallThumbnail}>
-            <View style={styles.smallThumbnailImage}>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.smallThumbnail}>
-            <View style={styles.smallThumbnailImage}>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Publish Modal */}
+      {/* Publish Modal - Instagram Style */}
       <Modal
         visible={publishModalVisible}
         transparent={true}
@@ -278,54 +319,61 @@ export default function CameraScreen() {
             {/* Header */}
             <View style={styles.publishModalHeader}>
               <TouchableOpacity onPress={handleClosePublishModal}>
-                <Ionicons name="close" size={24} color="#000000" />
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.publishModalTitle}>Publish Post</Text>
-              <TouchableOpacity 
+              <Text style={styles.publishModalTitle}>New Post</Text>
+              <TouchableOpacity
                 onPress={handlePublish}
                 disabled={isCreatingPost || !selectedImage}
-                style={[
-                  styles.publishButton,
-                  (isCreatingPost || !selectedImage) && styles.publishButtonDisabled
-                ]}
               >
                 {isCreatingPost ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator size="small" color="#0095F6" />
                 ) : (
-                  <Text style={styles.publishButtonText}>Publish</Text>
+                  <Text style={styles.shareText}>Share</Text>
                 )}
               </TouchableOpacity>
             </View>
 
-            {/* Image Preview */}
-            {selectedImage && (
-              <View style={styles.publishImageContainer}>
-                <Image 
-                  source={{ uri: selectedImage }} 
-                  style={styles.publishImage}
-                  resizeMode="cover"
-                />
-              </View>
-            )}
+            {/* Content */}
+            <View style={styles.publishContent}>
+              {/* Image Preview */}
+              {selectedImage && (
+                <View style={styles.publishImageContainer}>
+                  <Image
+                    source={{ uri: selectedImage }}
+                    style={styles.publishImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              )}
 
-            {/* Caption Input */}
-            <View style={styles.captionContainer}>
-              <TextInput
-                style={styles.captionInput}
-                placeholder="Write a caption..."
-                placeholderTextColor="#9CA3AF"
-                value={caption}
-                onChangeText={setCaption}
-                multiline
-                maxLength={500}
-                textAlignVertical="top"
-              />
-              <Text style={styles.captionLength}>{caption.length}/500</Text>
+              {/* Caption Input */}
+              <View style={styles.captionContainer}>
+                <View style={styles.userInfo}>
+                  <View style={styles.avatarPlaceholder}>
+                    <MaterialIcons name="person" size={20} color="#ffffff" />
+                  </View>
+                  <Text style={styles.username}>your_username</Text>
+                </View>
+                <TextInput
+                  style={styles.captionInput}
+                  placeholder="Write a caption..."
+                  placeholderTextColor="#8E8E93"
+                  value={caption}
+                  onChangeText={setCaption}
+                  multiline
+                  maxLength={2200}
+                  textAlignVertical="top"
+                />
+                <Text style={styles.captionLength}>{caption.length}/2200</Text>
+              </View>
             </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+
+      <Toast />
+    </View>
   );
 }
 
@@ -334,181 +382,106 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  topSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
-  },
-  topLeft: {
+  cameraWrapper: {
     flex: 1,
-  },
-  topRight: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  rotateButton: {
-    padding: 8,
-  },
-  rotateIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(233, 30, 99, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  abIndicatorContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  abIndicator: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#666666',
-  },
-  abIndicatorActive: {
-    color: '#E91E63',
-  },
-  cameraArea: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  cameraContainer: {
-    flex: 1,
-    borderRadius: 10,
-    overflow: 'hidden',
+    backgroundColor: '#000000',
   },
   camera: {
     flex: 1,
+    justifyContent: 'space-between',
   },
-  cameraOverlay: {
-    flex: 1,
-    position: 'relative',
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 50,
+    paddingBottom: 16,
+    backgroundColor: 'transparent',
   },
-  filterOverlay: {
+  topBarButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topBarRight: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  filtersBar: {
     position: 'absolute',
-    top: 0,
+    bottom: 100,
     left: 0,
     right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  permissionContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1F2937',
-    borderRadius: 10,
-  },
-  permissionText: {
-    fontSize: 18,
-    color: '#ffffff',
-    marginBottom: 20,
-  },
-  permissionButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  permissionButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  filterButtonsContainer: {
-    paddingVertical: 10,
+  filtersScroll: {
+    paddingHorizontal: 16,
+    gap: 16,
   },
   filterButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#333333',
-    borderRadius: 8,
-    marginVertical: 4,
-    borderWidth: 1,
-    borderColor: '#666666',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    flexDirection: 'row',
+    gap: 6,
   },
-  selectedFilterButton: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
+  filterButtonActive: {
+    backgroundColor: '#0095F6',
   },
   filterButtonText: {
-    color: '#ffffff',
     fontSize: 12,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    color: '#ffffff',
+    fontWeight: '500',
   },
-  cameraControls: {
+  filterButtonTextActive: {
+    color: '#ffffff',
+  },
+  bottomBar: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 30,
+    alignItems: 'center',
+    paddingHorizontal: 30,
+    paddingBottom: 30,
+    paddingTop: 16,
+    backgroundColor: 'transparent',
   },
-  capturedImagesContainer: {
-    flex: 1,
-    maxWidth: 120,
-  },
-  capturedImagesScroll: {
-    paddingRight: 10,
-  },
-  capturedImageThumbnail: {
-    width: 60,
-    height: 40,
-    borderRadius: 4,
-    marginRight: 8,
+  galleryButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  capturedImage: {
+  galleryThumbnail: {
     width: '100%',
     height: '100%',
   },
-  placeholderThumbnail: {
-    width: 60,
-    height: 40,
-    borderRadius: 4,
-    backgroundColor: '#333333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderText: {
-    color: '#666666',
-    fontSize: 10,
-  },
-  photoThumbnail: {
-    width: 60,
-    height: 40,
-    borderRadius: 4,
-    backgroundColor: '#333333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  thumbnailImage: {
+  galleryPlaceholder: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  thumbnailEmoji: {
-    fontSize: 20,
   },
   shutterButton: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   shutterOuter: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     borderWidth: 4,
     borderColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   shutterInner: {
     width: 60,
@@ -516,101 +489,120 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: '#ffffff',
   },
-  photoThumbnails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  smallThumbnail: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#333333',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  smallThumbnailImage: {
-    width: '100%',
-    height: '100%',
+  effectsButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  smallThumbnailEmoji: {
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+    gap: 20,
+  },
+  permissionText: {
     fontSize: 16,
+    color: '#ffffff',
+    marginBottom: 10,
   },
-  // Publish Modal Styles
+  permissionButton: {
+    backgroundColor: '#0095F6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  permissionButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Publish Modal Styles - Instagram Style
   publishModalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   publishModalContent: {
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
     maxHeight: '90%',
-    paddingBottom: 20,
   },
   publishModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#DBDBDB',
   },
-  publishModalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  cancelText: {
+    fontSize: 16,
     color: '#000000',
   },
-  publishButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
+  publishModalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000000',
   },
-  publishButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-    opacity: 0.6,
-  },
-  publishButtonText: {
-    color: '#ffffff',
+  shareText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: '#0095F6',
+  },
+  publishContent: {
+    flexDirection: 'row',
+    padding: 12,
+    gap: 12,
   },
   publishImageContainer: {
-    width: '100%',
-    height: 300,
-    marginTop: 10,
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   publishImage: {
     width: '100%',
     height: '100%',
   },
   captionContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    paddingBottom: 10,
+    flex: 1,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  avatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#0095F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  username: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#000000',
   },
   captionInput: {
-    minHeight: 100,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    fontSize: 14,
     color: '#000000',
-    backgroundColor: '#F9FAFB',
+    minHeight: 80,
+    padding: 0,
+    textAlignVertical: 'top',
   },
   captionLength: {
-    fontSize: 12,
-    color: '#9CA3AF',
+    fontSize: 11,
+    color: '#C7C7CC',
     textAlign: 'right',
-    marginTop: 5,
+    marginTop: 4,
   },
 });

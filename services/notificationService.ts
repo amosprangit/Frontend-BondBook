@@ -1,5 +1,5 @@
 import messaging from "@react-native-firebase/messaging";
-import notifee, { AndroidImportance } from "@notifee/react-native";
+// import notifee, { AndroidImportance } from "@notifee/react-native";
 import { getApp } from "@react-native-firebase/app";
 import { Platform, PermissionsAndroid } from "react-native";
 
