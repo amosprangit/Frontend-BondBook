@@ -26,7 +26,9 @@ import { useGetPostsQuery, useCreatePostMutation, useGetMyPostsQuery, useLikePos
 import { useGetMutualConnectionsQuery } from '../store/api/mutualConnectionsApi';
 import { Reminder, useLazyCheckDueRemindersQuery } from '../store/api/remindersApi';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { API_URL, BASE_URL } from '@env';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
 
 const { width, height } = Dimensions.get('window');
 const GRID_ITEM_WIDTH = (width - 60) / 3;
@@ -44,17 +46,17 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   const [commentPost, { isLoading: isCommenting }] = useCommentPostMutation();
   const [deletePost, { isLoading: isDeletingPost }] = useDeletePostMutation();
   const [refreshing, setRefreshing] = React.useState(false);
-  
+
   const previousUserIdRef = useRef<string | null>(null);
-  
+
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editUsername, setEditUsername] = useState('');
   const [editBio, setEditBio] = useState('');
-  
+
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [newComment, setNewComment] = useState('');
-  
+
   const [connectionsModalVisible, setConnectionsModalVisible] = useState(false);
   const { data: mutualConnectionsData } = useGetMutualConnectionsQuery();
   const mutualConnections = mutualConnectionsData?.mutualConnections || [];
@@ -64,7 +66,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
 
   const [dueReminders, setDueReminders] = useState<Reminder[]>([]);
   const [triggerCheckDueReminders, { isFetching: isCheckingDueReminders }] = useLazyCheckDueRemindersQuery();
-  
+
   const fetchDueReminders = useCallback(async () => {
     try {
       const response = await triggerCheckDueReminders().unwrap();
@@ -100,37 +102,71 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   }, [fetchDueReminders]);
 
   const handleUpdateProfilePicture = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'Camera roll permission is required' });
-        return;
-      }
+    // try {
+    //   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    //   if (status !== 'granted') {
+    //     Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'Camera roll permission is required' });
+    //     return;
+    //   }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+    //   const result = await ImagePicker.launchImageLibraryAsync({
+    //     mediaTypes: ['images'],
+    //     allowsEditing: true,
+    //     aspect: [1, 1],
+    //     quality: 0.8,
+    //   });
+
+    //   if (!result.canceled && result.assets[0]) {
+    //     const imageUri = result.assets[0].uri;
+    //     const formData = new FormData();
+    //     formData.append('image', {
+    //       uri: imageUri,
+    //       type: 'image/jpeg',
+    //       name: 'profile.jpg',
+    //     } as any);
+
+    //     const response = await updateProfilePicture(formData).unwrap();
+    //     if (response.success) {
+    //       Toast.show({ type: 'success', text1: 'Success', text2: 'Profile picture updated successfully!' });
+    //       refetch();
+    //     }
+    //   }
+    // } catch (error: any) {
+    //   Toast.show({ type: 'error', text1: 'Upload Failed', text2: error?.data?.message || 'Failed to update profile picture' });
+    // }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+
+      const asset = result.assets[0];
+
+      const formData = new FormData();
+
+      formData.append("image", {
+        uri:
+          Platform.OS === "ios"
+            ? asset.uri.replace("file://", "")
+            : asset.uri,
+
+        type: asset.mimeType || "image/jpeg",
+
+        name:
+          asset.fileName ||
+          `image-${Date.now()}.jpg`,
+      } as any);
+
+      console.log("📤 Sending Image =>", {
+        uri: asset.uri,
+        type: asset.mimeType,
+        name: asset.fileName,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        const imageUri = result.assets[0].uri;
-        const formData = new FormData();
-        formData.append('image', {
-          uri: imageUri,
-          type: 'image/jpeg',
-          name: 'profile.jpg',
-        } as any);
-
-        const response = await updateProfilePicture(formData).unwrap();
-        if (response.success) {
-          Toast.show({ type: 'success', text1: 'Success', text2: 'Profile picture updated successfully!' });
-          refetch();
-        }
-      }
-    } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Upload Failed', text2: error?.data?.message || 'Failed to update profile picture' });
+      await updateProfilePicture(formData).unwrap();
     }
   };
 
@@ -152,7 +188,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -161,7 +197,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
       if (!result.canceled && result.assets[0]) {
         const image = result.assets[0];
         const caption = 'New post';
-        
+
         const formData = new FormData();
         formData.append('image', {
           uri: image.uri,
@@ -184,13 +220,16 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refetch();
-      await refetchPosts();
-      await fetchDueReminders();
+      await Promise.all([
+        refetch(),
+        refetchPosts(),
+        fetchDueReminders()
+      ]);
     } catch (err) {
       console.error('Refresh error:', err);
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
   }, [refetch, refetchPosts, fetchDueReminders]);
 
   const handleEditProfile = () => {
@@ -214,7 +253,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
       if (result.success) {
         Toast.show({ type: 'success', text1: 'Success', text2: result.message || 'Profile updated successfully' });
         setEditModalVisible(false);
-        refetch();
+        await refetch();
       }
     } catch (error: any) {
       Toast.show({ type: 'error', text1: 'Error', text2: error?.data?.message || 'Failed to update profile' });
@@ -235,10 +274,11 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   const handleLikePost = async (postId: string, isLiked: boolean) => {
     try {
       const action = isLiked ? 0 : 1;
-      
+
+      // Optimistic update for My Posts
       const patchResult1 = dispatch(
         postsApi.util.updateQueryData('getMyPosts', undefined, (draft) => {
-          const post = draft.posts?.find((p) => p._id === postId);
+          const post = draft.posts?.find((p: any) => p._id === postId);
           if (post) {
             const newIsLiked = action === 1;
             let currentLikeCount = 0;
@@ -249,7 +289,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
             } else if (typeof post.likeCount === 'number') {
               currentLikeCount = post.likeCount;
             }
-            
+
             post.isLiked = newIsLiked;
             if (newIsLiked) {
               post.likes = currentLikeCount + 1;
@@ -262,10 +302,11 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           }
         })
       );
-      
+
+      // Optimistic update for All Posts
       const patchResult2 = dispatch(
         postsApi.util.updateQueryData('getPosts', undefined, (draft) => {
-          const post = draft.posts?.find((p) => p._id === postId);
+          const post = draft.posts?.find((p: any) => p._id === postId);
           if (post) {
             const newIsLiked = action === 1;
             let currentLikeCount = 0;
@@ -276,7 +317,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
             } else if (typeof post.likeCount === 'number') {
               currentLikeCount = post.likeCount;
             }
-            
+
             post.isLiked = newIsLiked;
             if (newIsLiked) {
               post.likes = currentLikeCount + 1;
@@ -289,13 +330,14 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           }
         })
       );
-      
+
       try {
         const result = await likePost({ postId, action }).unwrap();
-        
+
+        // Update with server data
         dispatch(
           postsApi.util.updateQueryData('getMyPosts', undefined, (draft) => {
-            const post = draft.posts?.find((p) => p._id === postId);
+            const post = draft.posts?.find((p: any) => p._id === postId);
             if (post && result && result.success) {
               if (result.isLiked !== undefined) post.isLiked = result.isLiked;
               let serverLikeCount = null;
@@ -311,10 +353,10 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
             }
           })
         );
-        
+
         dispatch(
           postsApi.util.updateQueryData('getPosts', undefined, (draft) => {
-            const post = draft.posts?.find((p) => p._id === postId);
+            const post = draft.posts?.find((p: any) => p._id === postId);
             if (post && result && result.success) {
               if (result.isLiked !== undefined) post.isLiked = result.isLiked;
               let serverLikeCount = null;
@@ -330,7 +372,8 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
             }
           })
         );
-        
+
+        // Update selected post if open
         if (selectedPost && selectedPost._id === postId && result && result.success) {
           setSelectedPost((prev: any) => {
             if (prev && prev._id === postId) {
@@ -346,6 +389,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           });
         }
       } catch (error: any) {
+        // Rollback optimistic updates
         patchResult1.undo();
         patchResult2.undo();
         throw error;
@@ -362,13 +406,16 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
     }
 
     try {
-      await commentPost({ postId: selectedPost._id, text: newComment }).unwrap();
-      Toast.show({ type: 'success', text1: 'Success', text2: 'Comment added successfully!' });
-      setNewComment('');
-      refetchPosts();
-      const updatedPosts = await refetchPosts();
-      const updatedPost = updatedPosts.data?.posts.find((p: any) => p._id === selectedPost._id);
-      if (updatedPost) setSelectedPost(updatedPost);
+      const result = await commentPost({ postId: selectedPost._id, text: newComment }).unwrap();
+      if (result.success) {
+        Toast.show({ type: 'success', text1: 'Success', text2: 'Comment added successfully!' });
+        setNewComment('');
+        await refetchPosts();
+        // Refresh selected post data
+        const updatedPosts = await refetchPosts();
+        const updatedPost = updatedPosts.data?.posts?.find((p: any) => p._id === selectedPost._id);
+        if (updatedPost) setSelectedPost(updatedPost);
+      }
     } catch (error: any) {
       Toast.show({ type: 'error', text1: 'Error', text2: error?.data?.message || 'Failed to add comment' });
     }
@@ -390,7 +437,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
               await deletePost(selectedPost._id).unwrap();
               Toast.show({ type: 'success', text1: 'Success', text2: 'Post deleted successfully!' });
               handleClosePostModal();
-              refetchPosts();
+              await refetchPosts();
             } catch (error: any) {
               Toast.show({ type: 'error', text1: 'Error', text2: error?.data?.message || 'Failed to delete post' });
             }
@@ -403,14 +450,16 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   const handleSharePost = async () => {
     if (!selectedPost) return;
     try {
-      const imageUrl = (selectedPost as any).imageUrl || ((selectedPost as any).image ? `${API_URL}/${(selectedPost as any).image}` : undefined);
+      const imageUrl = selectedPost.imageUrl || selectedPost.image ? `${API_URL}/${selectedPost.image}` : undefined;
       const postLink = `${BASE_URL}/post/${selectedPost._id}`;
       const shareMessage = `Check out this post by ${username}!\n\n${selectedPost.caption || 'No caption'}\n\nView post: ${postLink}`;
+
       const result = await Share.share({
         message: shareMessage,
         url: imageUrl,
         title: `Post by ${username}`,
       });
+
       if (result.action === Share.sharedAction) {
         Toast.show({ type: 'success', text1: 'Shared!', text2: 'Post shared successfully' });
       }
@@ -419,6 +468,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
     }
   };
 
+  // Get user data from various sources
   let user;
   if (profileData?.user) {
     user = profileData.user;
@@ -430,26 +480,28 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
 
   const username = user?.username || 'User';
   const bio = user?.bio || 'No bio yet';
-  const profilePicture = user?.profilePicture ? API_URL + "/" + user.profilePicture : 'https://picsum.photos/150/150?random=10';
+  const profilePicture = user?.profilePicture ?
+    (user.profilePicture.startsWith('http') ? user.profilePicture : `${API_URL}/${user.profilePicture}`) :
+    'https://picsum.photos/150/150?random=10';
   const followersCount = user?.followers?.length || 0;
   const followingCount = user?.following?.length || 0;
   const postsCount = posts.length || 0;
 
   const userId = user?._id || user?.id;
-  
-  const { 
-    data: followersData, 
-    isLoading: isLoadingFollowers, 
+
+  const {
+    data: followersData,
+    isLoading: isLoadingFollowers,
     error: followersError,
     refetch: refetchFollowers,
     isFetching: isFetchingFollowers
   } = useGetFollowersQuery(userId || '', {
     skip: !userId || !followersFollowingModalVisible
   });
-  
-  const { 
-    data: followingData, 
-    isLoading: isLoadingFollowing, 
+
+  const {
+    data: followingData,
+    isLoading: isLoadingFollowing,
     error: followingError,
     refetch: refetchFollowing,
     isFetching: isFetchingFollowing
@@ -457,10 +509,8 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
     skip: !userId || !followersFollowingModalVisible
   });
 
-  const followers = Array.isArray(followersData?.followers) ? followersData.followers : (Array.isArray(followersData) ? followersData : []);
-  const following = Array.isArray(followingData?.following) ? followingData.following : (Array.isArray(followingData) ? followingData : []);
-  const followingList = followingData?.following || [];
-  const followersList = followersData?.followers || [];
+  const followers = followersData?.followers || [];
+  const following = followingData?.following || [];
 
   useEffect(() => {
     if (followersFollowingModalVisible && userId) {
@@ -483,10 +533,6 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
     );
   }
 
-  if (error) {
-    Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to load profile data' });
-  }
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -504,8 +550,8 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -516,17 +562,16 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           />
         }
       >
-
         {/* Enhanced Profile Header Section */}
         <View style={styles.profileHeader}>
           <View style={styles.profilePictureSection}>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={handleUpdateProfilePicture}
               disabled={isUpdating}
               activeOpacity={0.7}
             >
               <View style={styles.profilePictureWrapper}>
-                <Image source={{ uri: profilePicture }} style={styles.profileImage} resizeMode="cover" />
+                <Image source={{ uri: profilePicture }} style={styles.profileImage} />
                 {isUpdating && (
                   <View style={styles.uploadingOverlay}>
                     <ActivityIndicator size="small" color="#ffffff" />
@@ -546,7 +591,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                 <Ionicons name="create-outline" size={20} color="#8B5CF6" />
               </TouchableOpacity>
             </View>
-            
+
             {bio && bio !== 'No bio yet' && (
               <Text style={styles.bioText}>{bio}</Text>
             )}
@@ -556,7 +601,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                 <Text style={styles.statNumber}>{postsCount}</Text>
                 <Text style={styles.statLabel}>posts</Text>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.statItem}
                 onPress={() => {
                   setModalType('followers');
@@ -567,7 +612,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                 <Text style={styles.statNumber}>{followersCount}</Text>
                 <Text style={styles.statLabel}>followers</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.statItem}
                 onPress={() => {
                   setModalType('following');
@@ -650,7 +695,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                 </View>
               ) : (
                 <>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.createPostCard}
                     onPress={handleCreatePost}
                     disabled={isCreatingPost}
@@ -673,26 +718,28 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                     </LinearGradient>
                   </TouchableOpacity>
 
-                  {posts.map((post) => (
-                    <TouchableOpacity 
-                      key={post._id} 
+                  {posts.map((post: any) => (
+                    <TouchableOpacity
+                      key={post._id}
                       style={styles.gridImageCard}
                       onPress={() => handlePostPress(post)}
                       activeOpacity={0.8}
                     >
                       <Image
-                        source={{ uri: API_URL + "/" + ((post as any).image || post.imageUrl) }}
+                        source={{ uri: `${API_URL}/${post.image || post.imageUrl}` }}
                         style={styles.gridImage}
-                        resizeMode="cover"
                       />
-                      <View style={styles.gridImageOverlay}>
+                      <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.7)']}
+                        style={styles.gridImageOverlay}
+                      >
                         <View style={styles.likesOverlay}>
                           <Ionicons name="heart" size={14} color="#ffffff" />
                           <Text style={styles.likesOverlayText}>
                             {post.likeCount || post.likes || 0}
                           </Text>
                         </View>
-                      </View>
+                      </LinearGradient>
                     </TouchableOpacity>
                   ))}
                 </>
@@ -810,7 +857,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
             </View>
 
             <View style={styles.followersFollowingListContainer}>
-              <ScrollView 
+              <ScrollView
                 style={styles.followersFollowingList}
                 showsVerticalScrollIndicator={true}
                 nestedScrollEnabled={true}
@@ -829,13 +876,13 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                         <Text style={styles.retryButtonText}>Retry</Text>
                       </TouchableOpacity>
                     </View>
-                  ) : (followers.length === 0 && followersList.length === 0) ? (
+                  ) : followers.length === 0 ? (
                     <View style={styles.followersFollowingEmpty}>
                       <Ionicons name="people-outline" size={64} color="#D1D5DB" />
                       <Text style={styles.followersFollowingEmptyText}>No followers yet</Text>
                     </View>
                   ) : (
-                    (followers.length > 0 ? followers : followersList).map((follower: any) => (
+                    followers.map((follower: any) => (
                       <TouchableOpacity
                         key={follower._id}
                         style={styles.followersFollowingItem}
@@ -847,12 +894,11 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                       >
                         <Image
                           source={{
-                            uri: follower.profilePicture?.startsWith('http') 
-                              ? follower.profilePicture 
-                              : follower.profilePicture ? API_URL + "/" + follower.profilePicture.replace(/^\//, '') : 'https://picsum.photos/150/150?random=1'
+                            uri: follower.profilePicture?.startsWith('http')
+                              ? follower.profilePicture
+                              : follower.profilePicture ? `${API_URL}/${follower.profilePicture.replace(/^\//, '')}` : 'https://picsum.photos/150/150?random=1'
                           }}
                           style={styles.followersFollowingAvatar}
-                          resizeMode="cover"
                         />
                         <View style={styles.followersFollowingUserInfo}>
                           <Text style={styles.followersFollowingUsername}>{follower.username || 'Unknown'}</Text>
@@ -879,13 +925,13 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                         <Text style={styles.retryButtonText}>Retry</Text>
                       </TouchableOpacity>
                     </View>
-                  ) : (followingList.length === 0 && following.length === 0) ? (
+                  ) : following.length === 0 ? (
                     <View style={styles.followersFollowingEmpty}>
                       <Ionicons name="people-outline" size={64} color="#D1D5DB" />
                       <Text style={styles.followersFollowingEmptyText}>Not following anyone yet</Text>
                     </View>
                   ) : (
-                    (followingList.length > 0 ? followingList : following).map((followedUser: any) => (
+                    following.map((followedUser: any) => (
                       <TouchableOpacity
                         key={followedUser._id}
                         style={styles.followersFollowingItem}
@@ -897,12 +943,11 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                       >
                         <Image
                           source={{
-                            uri: followedUser.profilePicture?.startsWith('http') 
-                              ? followedUser.profilePicture 
-                              : followedUser.profilePicture ? API_URL + "/" + followedUser.profilePicture.replace(/^\//, '') : 'https://picsum.photos/150/150?random=1'
+                            uri: followedUser.profilePicture?.startsWith('http')
+                              ? followedUser.profilePicture
+                              : followedUser.profilePicture ? `${API_URL}/${followedUser.profilePicture.replace(/^\//, '')}` : 'https://picsum.photos/150/150?random=1'
                           }}
                           style={styles.followersFollowingAvatar}
-                          resizeMode="cover"
                         />
                         <View style={styles.followersFollowingUserInfo}>
                           <Text style={styles.followersFollowingUsername}>{followedUser.username || 'Unknown'}</Text>
@@ -931,7 +976,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
       >
         <SafeAreaView style={styles.postModalContainer}>
           <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-          
+
           <View style={styles.postModalHeader}>
             <TouchableOpacity onPress={handleClosePostModal} style={styles.postModalBackButton}>
               <Ionicons name="arrow-back" size={24} color="#111827" />
@@ -947,23 +992,22 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           {selectedPost && (
             <ScrollView style={styles.postModalContent} showsVerticalScrollIndicator={false}>
               <View style={styles.postModalImageContainer}>
-                <Image 
-                  source={{ uri: API_URL + "/" + ((selectedPost as any).image || selectedPost.imageUrl) }} 
+                <Image
+                  source={{ uri: `${API_URL}/${selectedPost.image || selectedPost.imageUrl}` }}
                   style={styles.postModalImage}
-                  resizeMode="cover" 
                 />
               </View>
 
               <View style={styles.postModalPostContent}>
                 <View style={styles.postModalActions}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.postModalActionButton}
                     onPress={() => handleLikePost(selectedPost._id, Boolean(selectedPost.isLiked))}
                   >
-                    <Entypo 
-                      name={selectedPost.isLiked ? "heart" : "heart-outlined"} 
-                      size={28} 
-                      color={selectedPost.isLiked ? "#EF4444" : "#6B7280"} 
+                    <Entypo
+                      name={selectedPost.isLiked ? "heart" : "heart-outlined"}
+                      size={28}
+                      color={selectedPost.isLiked ? "#EF4444" : "#6B7280"}
                     />
                     <Text style={[styles.postModalActionText, selectedPost.isLiked && styles.postModalActionTextActive]}>
                       {selectedPost.likeCount || selectedPost.likes || 0}
@@ -1005,7 +1049,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
               </View>
 
               <View style={styles.postModalAddCommentContainer}>
-                <Image source={{ uri: profilePicture }} style={styles.postModalCommentAvatar} resizeMode="cover" />
+                <Image source={{ uri: profilePicture }} style={styles.postModalCommentAvatar} />
                 <TextInput
                   style={styles.postModalCommentInput}
                   placeholder="Add a comment..."
@@ -1014,7 +1058,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                   onChangeText={setNewComment}
                   multiline
                 />
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={handleSubmitComment}
                   disabled={!newComment.trim() || isCommenting}
                   style={styles.postModalPostCommentButton}
@@ -1032,6 +1076,8 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           )}
         </SafeAreaView>
       </Modal>
+
+      <Toast />
     </SafeAreaView>
   );
 }
@@ -1318,7 +1364,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'linear-gradient(transparent, rgba(0,0,0,0.6))',
     padding: 8,
   },
   likesOverlay: {

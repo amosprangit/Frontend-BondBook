@@ -24,9 +24,9 @@ import {
   useUpdateMutualConnectionProfileMutation,
   useUploadMutualConnectionProfilePictureMutation,
 } from '../store/api/mutualConnectionsApi';
-import { API_URL } from '@env';
 import { useAppSelector } from '../store/hooks';
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 export default function MutualConnectionProfileScreen({ route, navigation }: { route: any; navigation: any }) {
   const { mutualConnectionId, displayName, connectionId } = route.params || {};
   const { user: currentUser } = useAppSelector((state) => state.auth);

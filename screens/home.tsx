@@ -34,9 +34,9 @@ import { useGetPostsQuery, useCreatePostMutation, useLikePostMutation, useCommen
 import { useToggleFollowMutation, useGetProfileQuery, useCheckFollowRequestByPostQuery } from '../store/api/authApi';
 import { useGetRemindersQuery, useLazyGetActiveDueRemindersQuery, useDismissReminderMutation, Reminder } from '../store/api/remindersApi';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { API_URL, BASE_URL } from '@env';
 import { TapGestureHandler } from 'react-native-gesture-handler';
-
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
 const { width, height } = Dimensions.get('window');
 
 interface Comment {

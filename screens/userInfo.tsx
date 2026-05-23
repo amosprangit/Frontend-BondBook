@@ -26,8 +26,8 @@ import { useGetMutualConnectionQuery, useUnmergeMutualConnectionMutation } from 
 import { useGetUserPostsQuery, Post, useLikePostMutation, useCommentPostMutation, postsApi } from '../store/api/postsApi';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import Toast from 'react-native-toast-message';
-import { API_URL } from '@env';
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const { width } = Dimensions.get('window');
 
 interface UserInfoScreenProps {

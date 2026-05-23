@@ -28,9 +28,9 @@ import {
   MergeRequest,
 } from '../store/api/notificationApi';
 import { useLazyCheckDueRemindersQuery } from '../store/api/remindersApi';
-import { API_URL } from '@env';
 import Toast from 'react-native-toast-message';
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 export default function NotificationScreen({ navigation }: { navigation: any }) {
   const [acceptRequest] = useAcceptFollowRequestMutation();
   const [rejectRequest] = useRejectFollowRequestMutation();

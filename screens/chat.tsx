@@ -26,10 +26,10 @@ import {
   useGetMutualConnectionByIdQuery,
 } from '../store/api/mutualConnectionsApi';
 import { useAppSelector } from '../store/hooks';
-import { API_URL } from '@env';
 import Toast from 'react-native-toast-message';
 
 const { width, height } = Dimensions.get('window');
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function ChatScreen({ route, navigation }: { route: any; navigation: any }) {
   const { mutualConnectionId, displayName, otherUser, connectionId } = route.params || {};

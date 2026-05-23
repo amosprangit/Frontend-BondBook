@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useGetMutualConnectionsQuery } from "../store/api/mutualConnectionsApi";
 import { useAppSelector } from "../store/hooks";
-import { API_URL } from "@env";
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function ChatListScreen({ navigation }: { navigation: any }) {
 
