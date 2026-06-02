@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDispatch } from 'react-redux';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { setCredentials } from '../store/slices/authSlice';
-
+import uploadPostScreen from '../components/UploadPost';
 import TabNavigator from './TabNavigator';
 import LoginScreen from '../screens/login';
 import RegisterScreen from '../screens/register';
@@ -17,6 +17,7 @@ import AddReminderScreen from '../screens/addReminder';
 import ChatScreen from '../screens/chat';
 import MutualConnectionProfileScreen from '../screens/mutualConnectionProfile';
 import SettingsScreen from '../screens/settings';
+import NotificationScreen from '../screens/notifications';
 
 const Stack = createNativeStackNavigator();
 
@@ -69,12 +70,14 @@ export default function AppNavigator() {
       <Stack.Screen name="VerifyResetOtp" component={VerifyResetOtpScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="Home" component={TabNavigator} />
+      <Stack.Screen name="Notifications" component={NotificationScreen} />
       <Stack.Screen name="UserInfo" component={UserInfoScreen} />
       <Stack.Screen name="Reminders" component={RemindersScreen} />
       <Stack.Screen name="AddReminder" component={AddReminderScreen} />
       <Stack.Screen name="ChatScreen" component={ChatScreen} />
       <Stack.Screen name="MutualConnectionProfile" component={MutualConnectionProfileScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="UploadPost" component={uploadPostScreen} />
     </Stack.Navigator>
   );
 }

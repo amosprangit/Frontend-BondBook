@@ -27,7 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import TabHeader from '../components/tabHeader';
+import Notifications from '../screens/notifications';
 import ReminderPopup from '../components/ReminderPopup';
 import { useGetStoriesQuery, useGetStoriesFeedQuery, useGetMyStoriesQuery, useUploadStoryMutation, useDeleteStoryMutation } from '../store/api/storiesApi';
 import { useGetPostsQuery, useCreatePostMutation, useLikePostMutation, useCommentPostMutation, postsApi } from '../store/api/postsApi';
@@ -770,7 +770,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerIcon}
-              onPress={() => navigation.navigate('Messages')}
+              onPress={() => navigation.navigate('Notifications')}
             >
               <Ionicons name="chatbubble-outline" size={24} color="#000" />
               <View style={styles.badge}>
