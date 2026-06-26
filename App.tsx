@@ -5,10 +5,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { Provider } from 'react-redux';
 import Toast from 'react-native-toast-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-
-// Import the modular app and initialization functions
-import ReactNativeFirebaseApp from '@react-native-firebase/app';
-
 import AppNavigator from './navigation/AppNavigator';
 import { store } from './store';
 
@@ -18,21 +14,9 @@ import {
   notificationListener
 } from './services/notificationService';
 
-// Initialize Firebase immediately outside the component
-if (!ReactNativeFirebaseApp.apps.length) {
-  try {
-    ReactNativeFirebaseApp.initializeApp();
-    console.log("✅ Firebase initialized successfully");
-  } catch (e) {
-    console.log("❌ Firebase init error:", e);
-  }
-}
-
 export default function App() {
-
   useEffect(() => {
     const initNotifications = async () => {
-      // Small delay ensures the native bridge is 100% awake before requesting
       setTimeout(async () => {
         try {
           console.log("🚀 Starting Notification Setup...");
@@ -44,7 +28,6 @@ export default function App() {
             const token = await getFCMToken();
             if (token) {
               console.log("🔥 FCM TOKEN READY", token);
-              // If you need to save the token to your backend, do it here
             }
             notificationListener();
           } else {

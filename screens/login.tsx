@@ -13,11 +13,15 @@ import {
   TouchableWithoutFeedback,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Entypo, Ionicons, Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthRequest } from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { useLoginMutation, authApi } from '../store/api/authApi';
 import { postsApi } from '../store/api/postsApi';
 import { storiesApi } from '../store/api/storiesApi';
@@ -28,23 +32,57 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { getFCMToken } from '../services/notificationService';
 const { width, height } = Dimensions.get('window');
 
+WebBrowser.maybeCompleteAuthSession();
+
 const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isFocusedEmail, setIsFocusedEmail] = useState(false);
   const [isFocusedPassword, setIsFocusedPassword] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
+  const googleButtonScale = useRef(new Animated.Value(1)).current;
   const logoScale = useRef(new Animated.Value(0.8)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   const [login, { isLoading }] = useLoginMutation();
   const dispatch = useAppDispatch();
+
+  // Google Auth Request
+  const [request, response, promptAsync] = useAuthRequest({
+    androidClientId:
+      '853348218920-ohpop0mvmpo381tgooclvhani1i2n8vi.apps.googleusercontent.com',
+    webClientId:
+      '853348218920-mqhu07tt9979rb566tm55hf15c4r5h9k.apps.googleusercontent.com',
+    scopes: ['profile', 'email'],
+  });
+
+  // Handle Google login response
+  useEffect(() => {
+    const handleGoogleResponse = async () => {
+      if (response?.type === 'success') {
+        const { authentication } = response;
+        if (authentication?.accessToken) {
+          await handleGoogleLogin(authentication.accessToken);
+        }
+      } else if (response?.type === 'error') {
+        console.log('Google login error:', response.error);
+        Toast.show({
+          type: 'error',
+          text1: 'Google Login Failed',
+          text2: response.error?.message || 'Something went wrong',
+        });
+      }
+    };
+
+    handleGoogleResponse();
+  }, [response]);
 
   // Entry animations
   useEffect(() => {
@@ -89,6 +127,111 @@ const LoginScreen = ({ navigation }: any) => {
     ).start();
   }, []);
 
+  const handleGoogleLogin = async (accessToken: string) => {
+    setIsGoogleLoading(true);
+
+    // Button press animation
+    Animated.sequence([
+      Animated.spring(googleButtonScale, {
+        toValue: 0.95,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(googleButtonScale, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    try {
+      const response = await fetch('https://bondbook.cloud/api/auth/google', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accessToken: accessToken,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.token && data.user) {
+        const { token, user } = data;
+
+        const normalizedUser = {
+          ...user,
+          id: user.id || user._id,
+        };
+
+        dispatch(
+          setCredentials({
+            user: normalizedUser,
+            token: token,
+          })
+        );
+
+        dispatch(authApi.util.resetApiState());
+        dispatch(postsApi.util.resetApiState());
+        dispatch(storiesApi.util.resetApiState());
+
+        const fcmToken = await getFCMToken();
+        if (fcmToken) {
+          try {
+            await fetch("https://bondbook.cloud/api/users/save-fcm-token", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                fcmToken: fcmToken,
+              }),
+            });
+          } catch (err) {
+            console.log("Error saving FCM token:", err);
+          }
+        }
+
+        try {
+          await AsyncStorage.setItem('userToken', token);
+          await AsyncStorage.setItem('userData', JSON.stringify(normalizedUser));
+        } catch (storageError) {
+          console.error('Error saving to AsyncStorage:', storageError);
+        }
+
+        Toast.show({
+          type: 'success',
+          text1: 'Welcome!',
+          text2: `Hello ${normalizedUser.name || normalizedUser.username || 'there'} 👋`,
+        });
+
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Home' }],
+          })
+        );
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Login Failed',
+          text2: data.message || 'Unable to authenticate with Google',
+        });
+      }
+    } catch (error: any) {
+      console.log('Google login error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Login Error',
+        text2: error?.message || 'An error occurred during Google login',
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       Toast.show({
@@ -99,7 +242,6 @@ const LoginScreen = ({ navigation }: any) => {
       return;
     }
 
-    // Button press animation
     Animated.sequence([
       Animated.spring(buttonScale, {
         toValue: 0.95,
@@ -140,10 +282,8 @@ const LoginScreen = ({ navigation }: any) => {
         dispatch(authApi.util.resetApiState());
         dispatch(postsApi.util.resetApiState());
         dispatch(storiesApi.util.resetApiState());
-        
-        const fcmToken = await getFCMToken();
 
-        console.log("Saving FCM Token:", fcmToken);
+        const fcmToken = await getFCMToken();
 
         if (fcmToken) {
           try {
@@ -157,9 +297,6 @@ const LoginScreen = ({ navigation }: any) => {
                 fcmToken: fcmToken,
               }),
             });
-
-            console.log("FCM token saved to backend");
-
           } catch (err) {
             console.log("Error saving FCM token:", err);
           }
@@ -208,15 +345,19 @@ const LoginScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    Toast.show({
-      type: 'info',
-      text1: `${provider}`,
-      text2: `${provider} login coming soon!`,
-    });
+  const handleGoogleSignIn = async () => {
+    try {
+      await promptAsync();
+    } catch (error) {
+      console.log('Google sign-in error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Google Sign-In Failed',
+        text2: 'Please try again',
+      });
+    }
   };
 
-  // Shimmer transform
   const shimmerTranslate = shimmerAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [-width, width],
@@ -231,230 +372,237 @@ const LoginScreen = ({ navigation }: any) => {
         <SafeAreaView style={styles.container}>
           <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-          <View style={styles.content}>
-            {/* Animated Logo Section */}
-            <Animated.View
-              style={[
-                styles.logoContainer,
-                {
-                  opacity: logoOpacity,
-                  transform: [{ scale: logoScale }],
-                },
-              ]}
-            >
-              <View style={styles.logoWrapper}>
-                <LinearGradient
-                  colors={['#8B5CF6', '#C084FC', '#A855F7']}
-                  style={styles.logoGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Image
-                    source={require('../assets/images/logo.png')}
-                    resizeMode="contain"
-                    style={styles.logoImage}
-                  />
-                </LinearGradient>
-              </View>
-              <Animated.Text style={[styles.logoText, { opacity: fadeAnim }]}>
-                BondBook
-              </Animated.Text>
-              <Animated.Text style={[styles.tagline, { opacity: fadeAnim }]}>
-                Connect with your bonds
-              </Animated.Text>
-            </Animated.View>
-
-            {/* Input Fields with Animation */}
-            <Animated.View
-              style={[
-                styles.inputSection,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                },
-              ]}
-            >
-              <View style={styles.inputWrapper}>
-                <View style={[styles.inputIcon, isFocusedEmail && styles.inputIconFocused]}>
-                  <Feather name="mail" size={18} color={isFocusedEmail ? '#8B5CF6' : '#9CA3AF'} />
-                </View>
-                <TextInput
-                  style={[styles.input, isFocusedEmail && styles.inputFocused]}
-                  placeholder="Email address"
-                  placeholderTextColor="#9CA3AF"
-                  value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setIsFocusedEmail(true)}
-                  onBlur={() => setIsFocusedEmail(false)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.inputWrapper}>
-                <View style={[styles.inputIcon, isFocusedPassword && styles.inputIconFocused]}>
-                  <Feather name="lock" size={18} color={isFocusedPassword ? '#8B5CF6' : '#9CA3AF'} />
-                </View>
-                <TextInput
-                  style={[styles.input, isFocusedPassword && styles.inputFocused, { paddingRight: 50 }]}
-                  placeholder="Password"
-                  placeholderTextColor="#9CA3AF"
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setIsFocusedPassword(true)}
-                  onBlur={() => setIsFocusedPassword(false)}
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity
-                  style={styles.eyeIcon}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Entypo name={showPassword ? "eye" : "eye-with-line"} size={20} color="#8B5CF6" />
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-
-            {/* Forgot Password */}
-            <Animated.View
-              style={[
-                styles.forgotContainer,
-                { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-              ]}
-            >
-              <TouchableOpacity
-                onPress={() => navigation.navigate('ForgotPassword')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-              </TouchableOpacity>
-            </Animated.View>
-
-            {/* Login Button with Animation */}
-            <Animated.View
-              style={[
-                styles.buttonContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }, { scale: buttonScale }],
-                },
-              ]}
-            >
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={handleLogin}
-                disabled={isLoading}
-              >
-                <LinearGradient
-                  colors={isLoading ? ['#C4B5FD', '#C4B5FD'] : ['#8B5CF6', '#A855F7', '#C084FC']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#ffffff" size="small" />
-                  ) : (
-                    <Text style={styles.loginButtonText}>LogIn</Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </Animated.View>
-
-            {/* Social Login Section */}
-            <Animated.View
-              style={[
-                styles.socialSection,
-                { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-              ]}
-            >
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Or continue with</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <View style={styles.socialButtons}>
-                <TouchableOpacity
-                  style={styles.socialButton}
-                  onPress={() => handleSocialLogin('Google')}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={['#f8f9fa', '#f1f3f5']}
-                    style={styles.socialButtonGradient}
-                  >
-                    <Ionicons name="logo-google" size={24} color="#DB4437" />
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.socialButton}
-                  onPress={() => handleSocialLogin('Apple')}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={['#f8f9fa', '#f1f3f5']}
-                    style={styles.socialButtonGradient}
-                  >
-                    <Ionicons name="logo-apple" size={24} color="#000000" />
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.socialButton}
-                  onPress={() => handleSocialLogin('Facebook')}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={['#f8f9fa', '#f1f3f5']}
-                    style={styles.socialButtonGradient}
-                  >
-                    <Ionicons name="logo-facebook" size={24} color="#1877F2" />
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-
-            {/* Create Account Link */}
-            <Animated.View
-              style={[
-                styles.createAccountContainer,
-                { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-              ]}
-            >
-              <Text style={styles.noAccountText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                <Text style={styles.createAccountText}>Sign Up</Text>
-              </TouchableOpacity>
-            </Animated.View>
-
-            {/* Footer */}
-            <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
-              <Text style={styles.poweredByText}>Powered by</Text>
-              <LinearGradient
-                colors={['#8B5CF6', '#C084FC']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.mbdGradient}
-              >
-                <Text style={styles.mbdText}>M_BD</Text>
-              </LinearGradient>
-            </Animated.View>
-          </View>
-
-          {/* Shimmer Effect Overlay */}
-          <Animated.View
-            style={[
-              styles.shimmerOverlay,
-              {
-                transform: [{ translateX: shimmerTranslate }],
-              },
-            ]}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
           >
-            <LinearGradient
-              colors={['transparent', 'rgba(255,255,255,0.4)', 'transparent']}
-              style={styles.shimmerGradient}
-            />
-          </Animated.View>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              bounces={false}
+            >
+              <View style={styles.content}>
+                {/* Animated Logo Section - Enhanced Visibility */}
+                <Animated.View
+                  style={[
+                    styles.logoContainer,
+                    {
+                      opacity: logoOpacity,
+                      transform: [{ scale: logoScale }],
+                    },
+                  ]}
+                >
+                  <View style={styles.logoWrapper}>
+                    <LinearGradient
+                      colors={['#FF6B9D', '#C084FC', '#8B5CF6']}
+                      style={styles.logoGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <View style={styles.logoInnerGlow}>
+                        <Image
+                          source={require('../assets/images/logo.png')}
+                          resizeMode="contain"
+                          style={styles.logoImage}
+                        />
+                      </View>
+                    </LinearGradient>
+                  </View>
+                  <Animated.Text style={[styles.logoText, { opacity: fadeAnim }]}>
+                    BondBook
+                  </Animated.Text>
+                  <Animated.Text style={[styles.tagline, { opacity: fadeAnim }]}>
+                    Connect with your bonds
+                  </Animated.Text>
+                </Animated.View>
+
+                {/* Input Fields with Enhanced Visibility */}
+                <Animated.View
+                  style={[
+                    styles.inputSection,
+                    {
+                      opacity: fadeAnim,
+                      transform: [{ translateY: slideAnim }],
+                    },
+                  ]}
+                >
+                  <View style={styles.inputWrapper}>
+                    <View style={[styles.inputIcon, isFocusedEmail && styles.inputIconFocused]}>
+                      <Feather
+                        name="mail"
+                        size={18}
+                        color={isFocusedEmail ? '#8B5CF6' : '#6B7280'}
+                      />
+                    </View>
+                    <TextInput
+                      style={[styles.input, isFocusedEmail && styles.inputFocused]}
+                      placeholder="Email address"
+                      placeholderTextColor="#9CA3AF"
+                      value={email}
+                      onChangeText={setEmail}
+                      onFocus={() => setIsFocusedEmail(true)}
+                      onBlur={() => setIsFocusedEmail(false)}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  <View style={styles.inputWrapper}>
+                    <View style={[styles.inputIcon, isFocusedPassword && styles.inputIconFocused]}>
+                      <Feather
+                        name="lock"
+                        size={18}
+                        color={isFocusedPassword ? '#8B5CF6' : '#6B7280'}
+                      />
+                    </View>
+                    <TextInput
+                      style={[styles.input, isFocusedPassword && styles.inputFocused, { paddingRight: 50 }]}
+                      placeholder="Password"
+                      placeholderTextColor="#9CA3AF"
+                      value={password}
+                      onChangeText={setPassword}
+                      onFocus={() => setIsFocusedPassword(true)}
+                      onBlur={() => setIsFocusedPassword(false)}
+                      secureTextEntry={!showPassword}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeIcon}
+                      onPress={() => setShowPassword(!showPassword)}
+                    >
+                      <Entypo
+                        name={showPassword ? "eye" : "eye-with-line"}
+                        size={20}
+                        color={showPassword ? "#8B5CF6" : "#6B7280"}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </Animated.View>
+
+                {/* Forgot Password */}
+                <Animated.View
+                  style={[
+                    styles.forgotContainer,
+                    { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+                  ]}
+                >
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('ForgotPassword')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+
+                {/* Login Button */}
+                <Animated.View
+                  style={[
+                    styles.buttonContainer,
+                    {
+                      opacity: fadeAnim,
+                      transform: [{ translateY: slideAnim }, { scale: buttonScale }],
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={handleLogin}
+                    disabled={isLoading}
+                  >
+                    <LinearGradient
+                      colors={isLoading ? ['#C4B5FD', '#C4B5FD'] : ['#8B5CF6', '#A855F7', '#C084FC']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+                    >
+                      {isLoading ? (
+                        <ActivityIndicator color="#ffffff" size="small" />
+                      ) : (
+                        <Text style={styles.loginButtonText}>Sign In</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
+
+                {/* Divider */}
+                <Animated.View
+                  style={[
+                    styles.dividerContainer,
+                    { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+                  ]}
+                >
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>Or continue with</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+                </Animated.View>
+
+                {/* Google Login Button */}
+                <Animated.View
+                  style={[
+                    styles.googleButtonContainer,
+                    {
+                      opacity: fadeAnim,
+                      transform: [{ translateY: slideAnim }, { scale: googleButtonScale }],
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={handleGoogleSignIn}
+                    disabled={isGoogleLoading || !request}
+                  >
+                    <LinearGradient
+                      colors={isGoogleLoading ? ['#F3F4F6', '#F3F4F6'] : ['#FFFFFF', '#F9FAFB']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.googleButton, isGoogleLoading && styles.googleButtonDisabled]}
+                    >
+                      {isGoogleLoading ? (
+                        <View style={styles.googleLoadingContainer}>
+                          <ActivityIndicator color="#8B5CF6" size="small" />
+                          <Text style={styles.googleLoadingText}>Signing in...</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.googleButtonContent}>
+                          <View style={styles.googleIconContainer}>
+                            <Ionicons name="logo-google" size={22} color="#DB4437" />
+                          </View>
+                          <Text style={styles.googleButtonText}>Continue with Google</Text>
+                        </View>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
+
+                {/* Create Account Link */}
+                <Animated.View
+                  style={[
+                    styles.createAccountContainer,
+                    { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+                  ]}
+                >
+                  <Text style={styles.noAccountText}>Don't have an account? </Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                    <Text style={styles.createAccountText}>Sign Up</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+
+                {/* Footer */}
+                <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
+                  <Text style={styles.poweredByText}>Powered by</Text>
+                  <LinearGradient
+                    colors={['#8B5CF6', '#EC4899']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.mbdGradient}
+                  >
+                    <Text style={styles.mbdText}>BondBook</Text>
+                  </LinearGradient>
+                </Animated.View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </LinearGradient>
     </TouchableWithoutFeedback>
@@ -468,61 +616,77 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: Platform.OS === 'ios' ? 40 : 20,
+    paddingTop: Platform.OS === 'ios' ? 20 : 20,
     paddingBottom: 20,
   },
   logoContainer: {
     alignItems: 'center',
-    marginTop: Platform.OS === 'ios' ? 20 : 30,
-    marginBottom: 30,
+    marginTop: Platform.OS === 'ios' ? 10 : 20,
+    marginBottom: 24,
   },
   logoWrapper: {
     width: 100,
     height: 100,
-    borderRadius: 30,
+    borderRadius: 25,
     overflow: 'hidden',
     marginBottom: 16,
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 10,
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    elevation: 12,
   },
   logoGradient: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  logoInnerGlow: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   logoImage: {
-    width: 70,
-    height: 70,
+    width: 60,
+    height: 60,
+  },
+  logoTextGradient: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 8,
   },
   logoText: {
     fontSize: 32,
     fontWeight: '800',
-    fontStyle: 'italic',
-    color: '#7C3AED',
+    color: '#8B5CF6',
     letterSpacing: 1,
-    marginBottom: 8,
-    textShadowColor: 'rgba(139, 92, 246, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    textAlign: 'center',
   },
   tagline: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
     fontWeight: '500',
     letterSpacing: 0.5,
   },
   inputSection: {
-    marginTop: 20,
+    marginTop: 16,
   },
   inputWrapper: {
     position: 'relative',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   inputIcon: {
     position: 'absolute',
@@ -538,72 +702,70 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.1 }],
   },
   input: {
-    height: 54,
+    height: 52,
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
-    borderRadius: 16,
+    borderRadius: 14,
     paddingHorizontal: 48,
-    fontSize: 16,
+    fontSize: 15,
     backgroundColor: '#ffffff',
     color: '#1F2937',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   inputFocused: {
     borderColor: '#8B5CF6',
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   eyeIcon: {
     position: 'absolute',
     right: 16,
-    top: 17,
+    top: 16,
     padding: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
   forgotContainer: {
     alignItems: 'flex-end',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   forgotPasswordText: {
     color: '#8B5CF6',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   buttonContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   loginButton: {
-    height: 54,
-    borderRadius: 16,
+    height: 52,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
     shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 6,
   },
   loginButtonDisabled: {
     shadowOpacity: 0.1,
   },
   loginButtonText: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
-  socialSection: {
-    marginBottom: 24,
+  dividerContainer: {
+    marginBottom: 20,
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
   },
   dividerLine: {
     flex: 1,
@@ -612,57 +774,88 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     color: '#9CA3AF',
-    fontSize: 14,
+    fontSize: 13,
     marginHorizontal: 12,
     fontWeight: '500',
   },
-  socialButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
+  googleButtonContainer: {
+    marginBottom: 24,
   },
-  socialButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
+  googleButton: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 2,
   },
-  socialButtonGradient: {
-    flex: 1,
+  googleButtonDisabled: {
+    opacity: 0.7,
+  },
+  googleButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  googleIconContainer: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  googleButtonText: {
+    color: '#374151',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  googleLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  googleLoadingText: {
+    color: '#8B5CF6',
+    fontSize: 14,
+    fontWeight: '600',
   },
   createAccountContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   noAccountText: {
     color: '#6B7280',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
   },
   createAccountText: {
     color: '#8B5CF6',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   footer: {
     alignItems: 'center',
-    position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
+    marginTop: 'auto',
+    paddingTop: 20,
   },
   poweredByText: {
     color: '#9CA3AF',
-    fontSize: 12,
+    fontSize: 11,
     marginBottom: 4,
     fontWeight: '500',
   },
@@ -673,20 +866,8 @@ const styles = StyleSheet.create({
   },
   mbdText: {
     color: '#8B5CF6',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
-  },
-  shimmerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    pointerEvents: 'none',
-  },
-  shimmerGradient: {
-    width: width * 0.5,
-    height: '100%',
   },
 });
 
