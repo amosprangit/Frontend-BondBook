@@ -1,9 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
 import { Entypo, Ionicons, MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { useGetNotificationCountQuery } from '../store/api/notificationApi';
-import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 // Import screens
 import HomeScreen from '../screens/home';
 import ChatListScreen from '../screens/chatList';
@@ -12,11 +11,10 @@ import NotificationScreen from '../screens/notifications';
 import ProfileScreen from '../screens/profile';
 
 const Tab = createBottomTabNavigator();
-
+const { width } = Dimensions.get('window');
 
 // Custom tab icon component
 const TabIcon = ({ name, color, size, isFocused, type = 'entypo', badgeCount = 0 }: any) => {
-
   const getIconComponent = () => {
     switch (type) {
       case 'entypo':
@@ -34,6 +32,10 @@ const TabIcon = ({ name, color, size, isFocused, type = 'entypo', badgeCount = 0
 
   return (
     <View style={styles.iconContainer}>
+      {/* Active tab background pill */}
+      {isFocused && (
+        <View style={styles.activeTabBackground} />
+      )}
 
       {getIconComponent()}
 
@@ -44,17 +46,11 @@ const TabIcon = ({ name, color, size, isFocused, type = 'entypo', badgeCount = 0
           </Text>
         </View>
       )}
-
-      {isFocused && <View style={styles.activeIndicator} />}
-
     </View>
   );
 };
 
-
-
 export default function TabNavigator() {
-
   // Fetch notification count every 30 seconds
   const { data: notificationCountData } = useGetNotificationCountQuery(undefined, {
     pollingInterval: 30000,
@@ -62,32 +58,36 @@ export default function TabNavigator() {
 
   const unreadCount = notificationCountData?.unreadCount || 0;
 
-
   return (
-
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
-
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: '#ffffff',
-          height: 90,
+          bottom: 20,
+          left: 20,
+          right: 20,
+          backgroundColor: '#FFFFFF',
+          borderRadius: 30,
+          height: 60,
           borderTopWidth: 0,
-
-          elevation: 10,
+          // Improved shadow
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.08,
-          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.12,
+          shadowRadius: 16,
+          elevation: 12,
+          // Ensure proper layout
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-around',
+          paddingHorizontal: 5,
         },
-
-        tabBarActiveTintColor: '#8B5CF6',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: '#6C5CE7',
+        tabBarInactiveTintColor: '#95A5A6',
       }}
     >
-
       {/* Home */}
       <Tab.Screen
         name="HomeTab"
@@ -96,7 +96,7 @@ export default function TabNavigator() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="home"
-              color={color}
+              color={focused ? '#6C5CE7' : '#95A5A6'}
               size={24}
               isFocused={focused}
               type="entypo"
@@ -113,8 +113,8 @@ export default function TabNavigator() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="chat"
-              color={color}
-              size={24}
+              color={focused ? '#6C5CE7' : '#95A5A6'}
+              size={22}
               isFocused={focused}
               type="entypo"
             />
@@ -122,21 +122,19 @@ export default function TabNavigator() {
         }}
       />
 
-      {/* Camera Floating Button */}
+      {/* Camera - Now looks like other tabs */}
       <Tab.Screen
         name="CameraTab"
         component={CameraScreen}
         options={{
-          tabBarStyle: { display: 'none' },
-          tabBarIcon: ({ focused }) => (
-            <View
-              style={[
-                styles.cameraButton,
-                { backgroundColor: focused ? '#8B5CF6' : '#A78BFA' },
-              ]}
-            >
-              <Entypo name="camera" size={26} color="#fff" />
-            </View>
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon
+              name="camera"
+              color={focused ? '#6C5CE7' : '#95A5A6'}
+              size={24}
+              isFocused={focused}
+              type="entypo"
+            />
           ),
         }}
       />
@@ -149,8 +147,8 @@ export default function TabNavigator() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="bell"
-              color={color}
-              size={24}
+              color={focused ? '#6C5CE7' : '#95A5A6'}
+              size={23}
               isFocused={focused}
               type="entypo"
               badgeCount={unreadCount}
@@ -167,7 +165,7 @@ export default function TabNavigator() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="user-circle-o"
-              color={color}
+              color={focused ? '#6C5CE7' : '#95A5A6'}
               size={24}
               isFocused={focused}
               type="FontAwesome"
@@ -179,62 +177,45 @@ export default function TabNavigator() {
   );
 }
 
-
-
 const styles = StyleSheet.create({
-
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 50,
+    width: 40,
     height: 40,
+    position: 'relative',
   },
 
-
-  activeIndicator: {
+  // Active tab background pill
+  activeTabBackground: {
     position: 'absolute',
-    bottom: -8,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#F0E6FF',
+    borderRadius: 18,
+    width: 40,
+    height: 32,
+    opacity: 0.9,
+    top: 4,
   },
-
 
   badgeContainer: {
     position: 'absolute',
-    top: -4,
-    right: 1,
-    backgroundColor: '#EF4444',
-    borderRadius: 12,
+    top: 0,
+    right: -4,
+    backgroundColor: '#FF4757',
+    borderRadius: 10,
     minWidth: 18,
     height: 18,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    zIndex: 1,
   },
-
 
   badgeText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
-
-
-  cameraButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -25,
-
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-
 });

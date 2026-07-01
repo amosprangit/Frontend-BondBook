@@ -776,7 +776,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>3</Text>
               </View>
-            </TouchableOpacity>
+            </TouchableOpacity>  
           </View>
         </View>
       </Animated.View>

@@ -1,5 +1,5 @@
-import { createApi } from '@reduxjs/toolkit/query/react';
-import { createBaseQueryWithLogger } from './baseQuery';
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { createBaseQueryWithLogger } from "./baseQuery";
 
 export interface Notification {
   _id: string;
@@ -10,18 +10,18 @@ export interface Notification {
     profilePicture?: string;
   };
   type:
-    | 'follow_request'
-    | 'follow_accepted'
-    | 'new_post'
-    | 'new_story'
-    | 'profile_update'
-    | 'mutual_connection_created'
-    | 'mutual_connection_reactivated'
-    | 'merge_request'
-    | 'merge_request_accepted'
-    | 'merge_request_rejected'
-    | 'reminder_due'
-    | 'mutual_connection_post';
+    | "follow_request"
+    | "follow_accepted"
+    | "new_post"
+    | "new_story"
+    | "profile_update"
+    | "mutual_connection_created"
+    | "mutual_connection_reactivated"
+    | "merge_request"
+    | "merge_request_accepted"
+    | "merge_request_rejected"
+    | "reminder_due"
+    | "mutual_connection_post";
   message: string;
   relatedId?: string;
   relatedModel?: string;
@@ -54,7 +54,7 @@ export interface FollowRequest {
     profilePicture?: string;
     email?: string;
   };
-  status: 'pending' | 'accepted' | 'rejected';
+  status: "pending" | "accepted" | "rejected";
   createdAt: string;
   updatedAt: string;
 }
@@ -77,7 +77,7 @@ export interface MergeRequest {
     username: string;
     profilePicture?: string;
   };
-  status: 'pending' | 'accepted' | 'rejected';
+  status: "pending" | "accepted" | "rejected";
   createdAt: string;
   updatedAt: string;
 }
@@ -87,67 +87,104 @@ export interface MergeRequestsResponse {
   mergeRequests: MergeRequest[];
 }
 
+// ✅ Add interface for FCM token request
+export interface SaveFCMTokenRequest {
+  fcmToken: string;
+}
+
+export interface SaveFCMTokenResponse {
+  success: boolean;
+  message: string;
+}
+
 export const notificationApi = createApi({
-  reducerPath: 'notificationApi',
+  reducerPath: "notificationApi",
   baseQuery: createBaseQueryWithLogger(),
-  tagTypes: ['Notifications', 'FollowRequests'],
+  tagTypes: ["Notifications", "FollowRequests"],
   endpoints: (builder) => ({
-    getNotifications: builder.query<NotificationsResponse, { page?: number; limit?: number }>({
+    getNotifications: builder.query<
+      NotificationsResponse,
+      { page?: number; limit?: number }
+    >({
       query: ({ page = 1, limit = 50 } = {}) => ({
-        url: '/api/notifications',
-        method: 'GET',
+        url: "/api/notifications",
+        method: "GET",
         params: { page, limit },
       }),
-      providesTags: ['Notifications'],
+      providesTags: ["Notifications"],
     }),
-    getUnreadNotifications: builder.query<{ success: boolean; notifications: Notification[]; unreadCount: number }, void>({
+    getUnreadNotifications: builder.query<
+      { success: boolean; notifications: Notification[]; unreadCount: number },
+      void
+    >({
       query: () => ({
-        url: '/api/notifications/unread',
-        method: 'GET',
+        url: "/api/notifications/unread",
+        method: "GET",
       }),
-      providesTags: ['Notifications'],
+      providesTags: ["Notifications"],
     }),
-    getNotificationCount: builder.query<{ success: boolean; unreadCount: number }, void>({
+    getNotificationCount: builder.query<
+      { success: boolean; unreadCount: number },
+      void
+    >({
       query: () => ({
-        url: '/api/notifications/count',
-        method: 'GET',
+        url: "/api/notifications/count",
+        method: "GET",
       }),
-      providesTags: ['Notifications'],
+      providesTags: ["Notifications"],
     }),
-    markNotificationAsRead: builder.mutation<{ success: boolean; message: string; notification: Notification }, string>({
+    markNotificationAsRead: builder.mutation<
+      { success: boolean; message: string; notification: Notification },
+      string
+    >({
       query: (notificationId) => ({
         url: `/api/notifications/${notificationId}/read`,
-        method: 'PUT',
+        method: "PUT",
       }),
-      invalidatesTags: ['Notifications'],
+      invalidatesTags: ["Notifications"],
     }),
-    markAllNotificationsAsRead: builder.mutation<{ success: boolean; message: string; updatedCount: number }, void>({
+    markAllNotificationsAsRead: builder.mutation<
+      { success: boolean; message: string; updatedCount: number },
+      void
+    >({
       query: () => ({
-        url: '/api/notifications/read-all',
-        method: 'PUT',
+        url: "/api/notifications/read-all",
+        method: "PUT",
       }),
-      invalidatesTags: ['Notifications'],
+      invalidatesTags: ["Notifications"],
     }),
-    deleteNotification: builder.mutation<{ success: boolean; message: string }, string>({
+    deleteNotification: builder.mutation<
+      { success: boolean; message: string },
+      string
+    >({
       query: (notificationId) => ({
         url: `/api/notifications/${notificationId}`,
-        method: 'DELETE',
+        method: "DELETE",
       }),
-      invalidatesTags: ['Notifications'],
+      invalidatesTags: ["Notifications"],
     }),
     getFollowRequests: builder.query<FollowRequestsResponse, void>({
       query: () => ({
-        url: '/api/users/follow-requests',
-        method: 'GET',
+        url: "/api/users/follow-requests",
+        method: "GET",
       }),
-      providesTags: ['FollowRequests'],
+      providesTags: ["FollowRequests"],
     }),
     getMergeRequests: builder.query<MergeRequestsResponse, void>({
       query: () => ({
-        url: '/api/users/merge-requests',
-        method: 'GET',
+        url: "/api/users/merge-requests",
+        method: "GET",
       }),
-      providesTags: ['Notifications'],
+      providesTags: ["Notifications"],
+    }),
+    // ✅ ADD: Save FCM Token endpoint
+    saveFCMToken: builder.mutation<SaveFCMTokenResponse, SaveFCMTokenRequest>({
+      query: (body) => ({
+        url: "/api/users/save-fcm-token",
+        method: "POST",
+        body,
+      }),
+      // Optional: You can invalidate something if needed
     }),
   }),
 });
@@ -161,5 +198,6 @@ export const {
   useDeleteNotificationMutation,
   useGetFollowRequestsQuery,
   useGetMergeRequestsQuery,
+  // ✅ Export the new hook
+  useSaveFCMTokenMutation,
 } = notificationApi;
-
