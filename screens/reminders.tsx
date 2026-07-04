@@ -395,7 +395,7 @@ export default function RemindersScreen({ navigation }: any) {
           </LinearGradient>
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Reminders</Text>
+        {/* <Text style={styles.headerTitle}>Reminders</Text> */}
 
         <TouchableOpacity
           style={styles.addButton}

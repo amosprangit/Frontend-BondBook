@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
+import {
+  View,
+  Text,
+  StyleSheet,
   StatusBar,
-  ScrollView, 
-  TextInput, 
+  ScrollView,
+  TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
@@ -14,19 +14,20 @@ import {
   RefreshControl,
   Image,
   Animated,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Entypo, Ionicons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import TabHeader from '../components/tabHeader';
-import { 
-  useGetMessagesQuery, 
-  useSendMessageMutation, 
+import {
+  useGetMessagesQuery,
+  useSendMessageMutation,
   useMarkMessagesAsReadMutation,
   useGetMutualConnectionByIdQuery,
 } from '../store/api/mutualConnectionsApi';
 import { useAppSelector } from '../store/hooks';
 import Toast from 'react-native-toast-message';
+import MaskedView from '@react-native-masked-view/masked-view';
 
 const { width, height } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -36,30 +37,52 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const { user: currentUser } = useAppSelector((state) => state.auth);
-  
+
   const [message, setMessage] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
-  
+
   const { data: messagesData, isLoading, refetch } = useGetMessagesQuery(
     { mutualConnectionId, page: 1, limit: 100 },
     { skip: !mutualConnectionId, pollingInterval: 5000 }
   );
-  
+
   const { data: connectionData } = useGetMutualConnectionByIdQuery(mutualConnectionId, {
     skip: !mutualConnectionId,
   });
-  
+
   const [sendMessage, { isLoading: isSending }] = useSendMessageMutation();
   const [markAsRead] = useMarkMessagesAsReadMutation();
-  
+
   const messages = messagesData?.messages || [];
   const connection = connectionData?.mutualConnection;
-  
-  const profilePicture = connection?.profilePicture
-    ? `${API_URL}/${connection.profilePicture.replace(/^\//, '')}?t=${connection.updatedAt || Date.now()}`
-    : 'https://picsum.photos/150/150?random=10';
+
+  // ✅ Fix 3: Get real profile picture with fallback
+  const getUserProfilePicture = () => {
+    // Try to get from otherUser first
+    if (otherUser?.profilePicture) {
+      return `${API_URL}/${otherUser.profilePicture.replace(/^\//, '')}`;
+    }
+    // Try to get from connection
+    if (connection?.profilePicture) {
+      return `${API_URL}/${connection.profilePicture.replace(/^\//, '')}?t=${connection.updatedAt || Date.now()}`;
+    }
+    // Fallback to null
+    return null;
+  };
+
+  // ✅ Fix 3: Get display name
+  const getDisplayName = () => {
+    if (displayName) return displayName;
+    if (connection?.displayName) return connection.displayName;
+    if (otherUser?.username) return otherUser.username;
+    if (otherUser?.displayName) return otherUser.displayName;
+    return 'Connection';
+  };
+
+  const userProfilePicture = getUserProfilePicture();
+  const userName = getDisplayName();
 
   // Mark messages as read when opening chat
   useEffect(() => {
@@ -92,14 +115,14 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
     if (message.trim() && mutualConnectionId) {
       const messageContent = message.trim();
       setMessage(''); // Clear immediately for better UX
-      
+
       try {
         await sendMessage({
           mutualConnectionId,
           content: messageContent,
           messageType: 'text',
         }).unwrap();
-        
+
         await refetch();
       } catch (error: any) {
         console.error('Send message error:', error);
@@ -116,7 +139,7 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
   const handleProfilePress = () => {
     navigation.navigate('MutualConnectionProfile', {
       mutualConnectionId,
-      displayName,
+      displayName: userName,
       connectionId,
     });
   };
@@ -143,16 +166,16 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
 
   const handleInputChange = (text: string) => {
     setMessage(text);
-    
+
     // Simulate typing indicator
     if (text.length > 0 && !isTyping) {
       setIsTyping(true);
     }
-    
+
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    
+
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
     }, 1000);
@@ -173,49 +196,67 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
 
   const messageGroups = groupMessagesByDate();
 
+  // ✅ Fix 2: Remove menu button - just navigate back
+  // The menu button is completely removed from the header
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
-      <KeyboardAvoidingView 
+
+      <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* Enhanced Chat Header */}
-        <LinearGradient
-          colors={['#ffffff', '#F9FAFB']}
-          style={styles.chatHeader}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-        >
+        {/* ✅ Fixed Chat Header - No menu button */}
+        <View style={styles.chatHeader}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <View style={styles.backButtonCircle}>
               <Ionicons name="arrow-back" size={24} color="#8B5CF6" />
             </View>
           </TouchableOpacity>
-          
+
           <TouchableOpacity style={styles.userInfo} onPress={handleProfilePress} activeOpacity={0.7}>
             <View style={styles.profilePictureWrapper}>
               <View style={styles.profilePictureContainer}>
-                <Image
-                  source={{ uri: profilePicture }}
-                  style={styles.profileImage}
-                  resizeMode="cover"
-                />
+                {/* ✅ Fix 3: Show real profile picture or default */}
+                {userProfilePicture ? (
+                  <Image
+                    source={{ uri: userProfilePicture }}
+                    style={styles.profileImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.defaultAvatar}>
+                    <Text style={styles.defaultAvatarText}>
+                      {userName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.onlineIndicator} />
               </View>
             </View>
             <View style={styles.userDetails}>
-              <Text style={styles.contactName}>{displayName || connection?.displayName || 'Connection'}</Text>
+              {/* ✅ Fix 1: Gradient text for contact name */}
+              <MaskedView
+                style={styles.maskedView}
+                maskElement={
+                  <Text style={styles.contactName}>{userName}</Text>
+                }
+              >
+                <LinearGradient
+                  colors={['#8B5CF6', '#EC4899']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.gradientBackground}
+                />
+              </MaskedView>
               <Text style={styles.userStatus}>Online</Text>
             </View>
           </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.menuButton}>
-            <Feather name="more-vertical" size={24} color="#6B7280" />
-          </TouchableOpacity>
-        </LinearGradient>
+
+          {/* ✅ Fix 2: Menu button completely removed */}
+        </View>
 
         {/* Messages Area */}
         {isLoading && !refreshing ? (
@@ -226,14 +267,14 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
             <Text style={styles.loadingText}>Loading messages...</Text>
           </View>
         ) : (
-          <ScrollView 
+          <ScrollView
             ref={scrollViewRef}
             style={styles.messagesContainer}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.messagesContent}
             refreshControl={
-              <RefreshControl 
-                refreshing={refreshing} 
+              <RefreshControl
+                refreshing={refreshing}
                 onRefresh={onRefresh}
                 tintColor="#8B5CF6"
                 colors={['#8B5CF6']}
@@ -252,7 +293,7 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
                 </View>
                 <Text style={styles.emptyTitle}>No messages yet</Text>
                 <Text style={styles.emptyDescription}>
-                  Start the conversation with {displayName?.split(' ')[0] || 'them'}
+                  Start the conversation with {userName.split(' ')[0] || 'them'}
                 </Text>
               </View>
             ) : (
@@ -267,19 +308,29 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
                     {dateMessages.map((msg) => {
                       const isSent = msg.sender._id === currentUser?._id || msg.sender._id === currentUser?.id;
                       return (
-                        <View 
-                          key={msg._id} 
+                        <View
+                          key={msg._id}
                           style={[
                             styles.messageWrapper,
                             isSent ? styles.sentWrapper : styles.receivedWrapper
                           ]}
                         >
                           {!isSent && (
-                            <Image
-                              source={{ uri: profilePicture }}
-                              style={styles.messageAvatar}
-                              resizeMode="cover"
-                            />
+                            <View style={styles.messageAvatarWrapper}>
+                              {userProfilePicture ? (
+                                <Image
+                                  source={{ uri: userProfilePicture }}
+                                  style={styles.messageAvatar}
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <View style={[styles.messageAvatar, styles.messageDefaultAvatar]}>
+                                  <Text style={styles.messageDefaultText}>
+                                    {userName.charAt(0).toUpperCase()}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
                           )}
                           <View style={[
                             styles.messageBubble,
@@ -299,10 +350,10 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
                                 {formatMessageTime(msg.createdAt)}
                               </Text>
                               {isSent && (
-                                <Ionicons 
-                                  name="checkmark-done" 
-                                  size={14} 
-                                  color="rgba(255, 255, 255, 0.6)" 
+                                <Ionicons
+                                  name="checkmark-done"
+                                  size={14}
+                                  color="rgba(255, 255, 255, 0.6)"
                                   style={styles.readReceipt}
                                 />
                               )}
@@ -315,11 +366,19 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
                 ))}
                 {isTyping && (
                   <View style={styles.typingContainer}>
-                    <Image
-                      source={{ uri: profilePicture }}
-                      style={styles.typingAvatar}
-                      resizeMode="cover"
-                    />
+                    {userProfilePicture ? (
+                      <Image
+                        source={{ uri: userProfilePicture }}
+                        style={styles.typingAvatar}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[styles.typingAvatar, styles.typingDefaultAvatar]}>
+                        <Text style={styles.typingDefaultText}>
+                          {userName.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
                     <View style={styles.typingBubble}>
                       <View style={styles.typingDots}>
                         <View style={[styles.typingDot, styles.typingDot1]} />
@@ -345,7 +404,7 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
                 <Ionicons name="add" size={24} color="#8B5CF6" />
               </LinearGradient>
             </TouchableOpacity>
-            
+
             <View style={styles.textInputWrapper}>
               <TextInput
                 ref={inputRef}
@@ -358,13 +417,13 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
                 maxLength={500}
               />
             </View>
-            
+
             <TouchableOpacity style={styles.emojiButton} activeOpacity={0.7}>
               <Ionicons name="happy-outline" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[
               styles.sendButton,
               message.trim() ? styles.sendButtonActive : styles.sendButtonInactive
@@ -376,10 +435,10 @@ export default function ChatScreen({ route, navigation }: { route: any; navigati
             {isSending ? (
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
-              <Ionicons 
-                name="send" 
-                size={20} 
-                color={message.trim() ? "#ffffff" : "#9CA3AF"} 
+              <Ionicons
+                name="send"
+                size={20}
+                color={message.trim() ? "#ffffff" : "#9CA3AF"}
               />
             )}
           </TouchableOpacity>
@@ -402,6 +461,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'ios' ? 12 : 16,
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
     shadowColor: '#000',
@@ -439,6 +499,21 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#8B5CF6',
   },
+  defaultAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
+  },
+  defaultAvatarText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   onlineIndicator: {
     position: 'absolute',
     bottom: 2,
@@ -453,24 +528,25 @@ const styles = StyleSheet.create({
   userDetails: {
     flex: 1,
   },
+  maskedView: {
+    height: 24,
+    width: 'auto',
+  },
   contactName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
-    marginBottom: 2,
+    backgroundColor: 'transparent',
+  },
+  gradientBackground: {
+    flex: 1,
+    height: '100%',
+    width: '100%',
   },
   userStatus: {
     fontSize: 12,
     color: '#10B981',
     fontWeight: '500',
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginTop: 2,
   },
   messagesContainer: {
     flex: 1,
@@ -505,13 +581,25 @@ const styles = StyleSheet.create({
   receivedWrapper: {
     justifyContent: 'flex-start',
   },
+  messageAvatarWrapper: {
+    marginRight: 8,
+    alignSelf: 'flex-end',
+    marginBottom: 4,
+  },
   messageAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    marginRight: 8,
-    alignSelf: 'flex-end',
-    marginBottom: 4,
+  },
+  messageDefaultAvatar: {
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  messageDefaultText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   messageBubble: {
     maxWidth: '75%',
@@ -573,6 +661,16 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     marginRight: 8,
+  },
+  typingDefaultAvatar: {
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  typingDefaultText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   typingBubble: {
     backgroundColor: '#ffffff',

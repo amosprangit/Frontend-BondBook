@@ -10,6 +10,9 @@ import {
     ScrollView,
     Platform,
     KeyboardAvoidingView,
+    SafeAreaView,
+    Keyboard,
+    TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -170,104 +173,186 @@ export default function UploadPost({ route, navigation }: any) {
     };
 
     return (
-        <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#000" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>New Post</Text>
-                <TouchableOpacity
-                    style={[styles.shareButton, (isLoading || isCompressing) && styles.shareButtonDisabled]}
-                    onPress={handleShare}
-                    disabled={isLoading || isCompressing}
-                >
-                    <LinearGradient
-                        colors={(isLoading || isCompressing) ? ['#D1D5DB', '#D1D5DB'] : ['#8B5CF6', '#EC4899']}
-                        style={styles.shareGradient}
+        <SafeAreaView style={styles.container}>
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                {/* Header - Stays fixed */}
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color="#000" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>New Post</Text>
+                    <TouchableOpacity
+                        style={[styles.shareButton, (isLoading || isCompressing) && styles.shareButtonDisabled]}
+                        onPress={handleShare}
+                        disabled={isLoading || isCompressing}
                     >
-                        {(isCompressing || isLoading) ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                            <Text style={styles.shareText}>Share</Text>
-                        )}
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+                        <LinearGradient
+                            colors={(isLoading || isCompressing) ? ['#D1D5DB', '#D1D5DB'] : ['#8B5CF6', '#EC4899']}
+                            style={styles.shareGradient}
+                        >
+                            {(isCompressing || isLoading) ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Text style={styles.shareText}>Share</Text>
+                            )}
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                <View style={styles.imageContainer}>
-                    <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
-                    {(isCompressing || isLoading) && (
-                        <View style={styles.uploadOverlay}>
-                            <ActivityIndicator size="large" color="#fff" />
-                            <Text style={styles.uploadText}>
-                                {isCompressing ? 'Compressing image...' : 'Uploading...'}
-                            </Text>
+                {/* ✅ SingleChildScrollView equivalent - Scrollable content */}
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={true}
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled={true}
+                    bounces={true}
+                    overScrollMode="always"
+                >
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <View style={styles.scrollInnerContent}>
+                            {/* Image Container */}
+                            <View style={styles.imageContainer}>
+                                <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
+                                {(isCompressing || isLoading) && (
+                                    <View style={styles.uploadOverlay}>
+                                        <ActivityIndicator size="large" color="#fff" />
+                                        <Text style={styles.uploadText}>
+                                            {isCompressing ? 'Compressing image...' : 'Uploading...'}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            {/* Caption Section */}
+                            <View style={styles.captionSection}>
+                                <View style={styles.avatarContainer}>
+                                    {user?.profilePicture ? (
+                                        <Image
+                                            source={{ uri: `https://bondbook.cloud/${user.profilePicture}` }}
+                                            style={styles.avatar}
+                                        />
+                                    ) : (
+                                        <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.avatarGradient}>
+                                            <Text style={styles.avatarText}>
+                                                {user?.username?.charAt(0).toUpperCase() || 'U'}
+                                            </Text>
+                                        </LinearGradient>
+                                    )}
+                                </View>
+                                <View style={styles.captionWrapper}>
+                                    <Text style={styles.username}>{user?.username || 'User'}</Text>
+                                    <TextInput
+                                        placeholder="Write a caption..."
+                                        placeholderTextColor="#9CA3AF"
+                                        multiline
+                                        value={caption}
+                                        onChangeText={setCaption}
+                                        maxLength={2200}
+                                        style={styles.captionInput}
+                                        editable={!isLoading && !isCompressing}
+                                        textAlignVertical="top"
+                                    />
+                                    <Text style={styles.counter}>{caption.length}/2200</Text>
+                                </View>
+                            </View>
+
+                            {/* Extra bottom padding for scrolling */}
+                            <View style={styles.bottomSpacer} />
                         </View>
-                    )}
-                </View>
-
-                <View style={styles.captionSection}>
-                    <View style={styles.avatarContainer}>
-                        {user?.profilePicture ? (
-                            <Image source={{ uri: `https://bondbook.cloud/${user.profilePicture}` }} style={styles.avatar} />
-                        ) : (
-                            <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.avatarGradient}>
-                                <Text style={styles.avatarText}>{user?.username?.charAt(0).toUpperCase() || 'U'}</Text>
-                            </LinearGradient>
-                        )}
-                    </View>
-                    <View style={styles.captionWrapper}>
-                        <Text style={styles.username}>{user?.username || 'User'}</Text>
-                        <TextInput
-                            placeholder="Write a caption..."
-                            placeholderTextColor="#9CA3AF"
-                            multiline
-                            value={caption}
-                            onChangeText={setCaption}
-                            maxLength={2200}
-                            style={styles.captionInput}
-                            editable={!isLoading && !isCompressing}
-                        />
-                        <Text style={styles.counter}>{caption.length}/2200</Text>
-                    </View>
-                </View>
-            </ScrollView>
-        </KeyboardAvoidingView>
+                    </TouchableWithoutFeedback>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FAFAFA' },
+    container: {
+        flex: 1,
+        backgroundColor: '#FAFAFA'
+    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'ios' ? 50 : 16,
+        paddingHorizontal: 18,
+        paddingTop: Platform.OS === 'ios' ? 12 : 36,
         paddingBottom: 12,
         backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
         borderBottomColor: '#F0F0F0',
+        borderBottomWidth: 1,
+        zIndex: 10,
     },
-    backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 20, backgroundColor: '#F5F5F5' },
-    headerTitle: { fontSize: 18, fontWeight: '600', color: '#000000' },
-    shareButton: { overflow: 'hidden', borderRadius: 8 },
-    shareButtonDisabled: { opacity: 0.6 },
-    shareGradient: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8 },
-    shareText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
-    scrollContent: { paddingBottom: 30 },
-    imageContainer: { width: '100%', height: 350, backgroundColor: '#F3F4F6', position: 'relative' },
-    image: { width: '100%', height: '100%' },
+    backButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 20,
+        backgroundColor: '#F5F5F5'
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#000000'
+    },
+    shareButton: {
+        overflow: 'hidden',
+        borderRadius: 8
+    },
+    shareButtonDisabled: {
+        opacity: 0.6
+    },
+    shareGradient: {
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        borderRadius: 8
+    },
+    shareText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '600'
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingBottom: 30,
+    },
+    scrollInnerContent: {
+        flex: 1,
+    },
+    imageContainer: {
+        width: '100%',
+        height: 350,
+        backgroundColor: '#F3F4F6',
+        position: 'relative'
+    },
+    image: {
+        width: '100%',
+        height: '100%'
+    },
     uploadOverlay: {
         position: 'absolute',
-        top: 0, left: 0, right: 0, bottom: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'center',
         alignItems: 'center',
         gap: 12,
     },
-    uploadText: { color: '#FFFFFF', fontSize: 14, fontWeight: '500' },
+    uploadText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '500'
+    },
     captionSection: {
         flexDirection: 'row',
         padding: 16,
@@ -281,12 +366,50 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 2,
     },
-    avatarContainer: { marginRight: 12 },
-    avatarGradient: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
-    avatar: { width: 48, height: 48, borderRadius: 24 },
-    avatarText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
-    captionWrapper: { flex: 1 },
-    username: { fontSize: 14, fontWeight: '600', color: '#000000', marginBottom: 8 },
-    captionInput: { fontSize: 15, color: '#000000', minHeight: 80, padding: 0, lineHeight: 20 },
-    counter: { textAlign: 'right', fontSize: 12, color: '#9CA3AF', marginTop: 8 },
+    avatarContainer: {
+        marginRight: 12
+    },
+    avatarGradient: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    avatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24
+    },
+    avatarText: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '700'
+    },
+    captionWrapper: {
+        flex: 1
+    },
+    username: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#000000',
+        marginBottom: 8
+    },
+    captionInput: {
+        fontSize: 15,
+        color: '#000000',
+        minHeight: 80,
+        padding: 0,
+        lineHeight: 20,
+        flex: 1,
+    },
+    counter: {
+        textAlign: 'right',
+        fontSize: 12,
+        color: '#9CA3AF',
+        marginTop: 8
+    },
+    bottomSpacer: {
+        height: 40,
+    },
 });

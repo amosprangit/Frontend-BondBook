@@ -1,5 +1,5 @@
-import { createApi } from '@reduxjs/toolkit/query/react';
-import { createBaseQueryWithLogger } from './baseQuery';
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { createBaseQueryWithLogger } from "./baseQuery";
 
 export interface Story {
   _id: string;
@@ -8,6 +8,8 @@ export interface Story {
   createdAt: string;
   expiresAt: string;
   views?: string[];
+  likes?: number;
+  isLiked?: boolean;
 }
 
 export interface UserStories {
@@ -40,53 +42,77 @@ export interface UploadStoryResponse {
   story?: Story;
 }
 
+export interface StoryLikeResponse {
+  success: boolean;
+  isLiked: boolean;
+  likes: number;
+}
+
 export const storiesApi = createApi({
-  reducerPath: 'storiesApi',
+  reducerPath: "storiesApi",
   baseQuery: createBaseQueryWithLogger(),
-  tagTypes: ['Stories'],
+  tagTypes: ["Stories", "MyStories"],
   endpoints: (builder) => ({
     getStories: builder.query<StoriesResponse, void>({
       query: () => ({
-        url: '/api/stories/',
-        method: 'GET',
+        url: "/api/stories/",
+        method: "GET",
       }),
-      providesTags: ['Stories'],
+      providesTags: ["Stories"],
     }),
     getStoriesFeed: builder.query<StoriesResponse, void>({
       query: () => {
-        console.log('Fetching stories feed...');
+        console.log("Fetching stories feed...");
         return {
-          url: '/api/stories/feed',
-          method: 'GET',
+          url: "/api/stories/feed",
+          method: "GET",
         };
       },
-      providesTags: ['Stories'],
+      providesTags: ["Stories"],
     }),
     getMyStories: builder.query<StoriesResponse, void>({
       query: () => ({
-        url: '/api/stories/me',
-        method: 'GET',
+        url: "/api/stories/me",
+        method: "GET",
       }),
-      providesTags: ['Stories'],
+      providesTags: ["MyStories"],
     }),
     uploadStory: builder.mutation<UploadStoryResponse, FormData>({
       query: (formData) => {
-        console.log('Uploading story...');
+        console.log("Uploading story...");
         return {
-          url: '/api/stories/',
-          method: 'POST',
+          url: "/api/stories/",
+          method: "POST",
           body: formData,
-          // FormData will automatically set Content-Type with boundary
         };
       },
-      invalidatesTags: ['Stories'],
+      invalidatesTags: ["Stories", "MyStories"],
     }),
-    deleteStory: builder.mutation<{ success: boolean; message: string }, string>({
+    deleteStory: builder.mutation<
+      { success: boolean; message: string },
+      string
+    >({
       query: (storyId) => ({
         url: `/api/stories/${storyId}`,
-        method: 'DELETE',
+        method: "DELETE",
       }),
-      invalidatesTags: ['Stories'],
+      invalidatesTags: ["Stories", "MyStories"],
+    }),
+    // ✅ ADD STORY LIKE ENDPOINT
+    likeStory: builder.mutation<StoryLikeResponse, { storyId: string }>({
+      query: ({ storyId }) => ({
+        url: `/api/stories/${storyId}/like`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Stories", "MyStories"],
+    }),
+    // ✅ ADD STORY UNLIKE ENDPOINT
+    unlikeStory: builder.mutation<StoryLikeResponse, { storyId: string }>({
+      query: ({ storyId }) => ({
+        url: `/api/stories/${storyId}/like`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Stories", "MyStories"],
     }),
   }),
 });
@@ -97,4 +123,6 @@ export const {
   useGetMyStoriesQuery,
   useUploadStoryMutation,
   useDeleteStoryMutation,
+  useLikeStoryMutation, // ✅ Export this
+  useUnlikeStoryMutation, // ✅ Export this
 } = storiesApi;

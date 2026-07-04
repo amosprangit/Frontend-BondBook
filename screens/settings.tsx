@@ -266,7 +266,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
           </Animated.View> */}
 
           {/* Reminders Section */}
-          <Animated.View 
+          {/* <Animated.View 
             style={[
               styles.settingsSection,
               {
@@ -320,7 +320,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
                 <Ionicons name="chevron-forward" size={20} color="#C4B5FD" />
               </LinearGradient>
             </TouchableOpacity>
-          </Animated.View>
+          </Animated.View> */}
 
           {/* Preferences Section */}
           {/* <Animated.View 
@@ -491,19 +491,6 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
                 <Ionicons name="chevron-forward" size={20} color="#C4B5FD" />
               </LinearGradient>
             </TouchableOpacity>
-          </Animated.View>
-
-          {/* Footer */}
-          <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
-            <Text style={styles.poweredByText}>Powered by</Text>
-            <LinearGradient
-              colors={['#8B5CF6', '#C084FC']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.mbdGradient}
-            >
-              <Text style={styles.mbdText}>M_BD</Text>
-            </LinearGradient>
           </Animated.View>
         </ScrollView>
 
@@ -696,19 +683,9 @@ const styles = StyleSheet.create({
   },
   poweredByText: {
     color: '#9CA3AF',
-    fontSize: 12,
+    fontSize: 14,
     marginBottom: 4,
     fontWeight: '500',
-  },
-  mbdGradient: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  mbdText: {
-    color: '#8B5CF6',
-    fontSize: 16,
-    fontWeight: '800',
   },
   modalOverlay: {
     flex: 1,
