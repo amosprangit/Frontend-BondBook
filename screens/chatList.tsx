@@ -19,17 +19,34 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useGetMutualConnectionsQuery } from "../store/api/mutualConnectionsApi";
 import { useAppSelector } from "../store/hooks";
 import Toast from 'react-native-toast-message';
+import CustomMenu from "../components/custom_menu";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
+type IconFamily = 'Ionicons' | 'Feather' | 'MaterialIcons';
+
+interface MenuOption {
+  id: string;
+  title: string;
+  icon: string;
+  iconType?: IconFamily;
+  onPress: () => void;
+  destructive?: boolean;
+}
+
 export default function ChatListScreen({ navigation }: { navigation: any }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [menuVisible, setMenuVisible] = useState(false);
   const { user: currentUser } = useAppSelector((state) => state.auth);
   const { data, isLoading, refetch, isFetching } = useGetMutualConnectionsQuery(undefined, {
     pollingInterval: 5000
   });
 
   const mutualConnections = data?.mutualConnections || [];
+
+  // ✅ Debug: Log the data to see what's coming from API
+  console.log("📊 Mutual Connections Data:", JSON.stringify(mutualConnections[0], null, 2));
+
   const filteredConnections = mutualConnections.filter((connection: any) =>
     connection.displayName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -41,7 +58,7 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
   });
 
   const handleChatPress = (connection: any) => {
-    navigation.navigate("ChatScreen", {
+    navigation.navigate("Chats", {
       mutualConnectionId: connection._id,
       connectionId: connection.connectionId,
       displayName: connection.displayName,
@@ -65,7 +82,6 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
     return date.toLocaleDateString();
   };
 
-  // ✅ Fix 3: Get correct profile picture with fallback
   const getProfilePicture = (item: any) => {
     if (item?.profilePicture) {
       return `${API_URL}/${item.profilePicture.replace(/^\//, "")}`;
@@ -76,7 +92,6 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
     return null;
   };
 
-  // ✅ Fix 3: Get display name with fallback
   const getDisplayName = (item: any) => {
     if (item?.displayName) return item.displayName;
     if (item?.otherUser?.username) return item.otherUser.username;
@@ -84,56 +99,179 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
     return "User";
   };
 
-  // ✅ Fix 2: Menu options handler with three-dots icon
-  const handleMenuPress = () => {
-    Alert.alert(
-      "Chat Options",
-      "Choose an action",
-      [
-        {
-          text: "New Group Chat",
-          onPress: () => {
-            Toast.show({
-              type: 'info',
-              text1: 'Coming Soon',
-              text2: 'Group chat feature is coming soon!',
-            });
-          }
-        },
-        {
-          text: "Archived Chats",
-          onPress: () => {
-            Toast.show({
-              type: 'info',
-              text1: 'Coming Soon',
-              text2: 'Archived chats feature is coming soon!',
-            });
-          }
-        },
-        {
-          text: "Settings",
-          onPress: () => {
-            navigation.navigate("Settings");
-          }
-        },
-        {
-          text: "Cancel",
-          style: "cancel"
-        }
-      ],
-      { cancelable: true }
-    );
+  // ✅ FIXED: Get last message content with fallbacks
+  const getLastMessageContent = (item: any) => {
+    // Try multiple possible paths for the last message
+    if (item?.lastMessage?.content) {
+      return item.lastMessage.content;
+    }
+    if (item?.lastMessage?.text) {
+      return item.lastMessage.text;
+    }
+    if (item?.lastMessage?.message) {
+      return item.lastMessage.message;
+    }
+    if (item?.lastMessage) {
+      // If lastMessage exists but has no content field, stringify it
+      return typeof item.lastMessage === 'string'
+        ? item.lastMessage
+        : JSON.stringify(item.lastMessage);
+    }
+    // Check if there's a lastMessageText directly on the item
+    if (item?.lastMessageText) {
+      return item.lastMessageText;
+    }
+    return "No messages yet";
   };
 
+  // ✅ FIXED: Get last message time with fallbacks
+  const getLastMessageTime = (item: any) => {
+    if (item?.lastMessage?.createdAt) {
+      return item.lastMessage.createdAt;
+    }
+    if (item?.lastMessage?.timestamp) {
+      return item.lastMessage.timestamp;
+    }
+    if (item?.lastMessage?.sentAt) {
+      return item.lastMessage.sentAt;
+    }
+    return item.updatedAt;
+  };
+
+  // ✅ FIXED: Check if message is from current user
+  const isMessageFromCurrentUser = (item: any) => {
+    const senderId = item?.lastMessage?.senderId || item?.lastMessage?.sender?._id || item?.lastMessage?.sender;
+    if (!senderId) return false;
+    return senderId === currentUser?.id || senderId === currentUser?._id;
+  };
+
+  const menuOptions: MenuOption[] = [
+    {
+      id: 'new_group',
+      title: 'New Group Chat',
+      icon: 'people',
+      iconType: 'Ionicons',
+      onPress: () => {
+        Toast.show({
+          type: 'info',
+          text1: 'Coming Soon',
+          text2: 'Group chat feature is coming soon!',
+        });
+      }
+    },
+    {
+      id: 'archived',
+      title: 'Archived Chats',
+      icon: 'archive',
+      iconType: 'Ionicons',
+      onPress: () => {
+        Toast.show({
+          type: 'info',
+          text1: 'Coming Soon',
+          text2: 'Archived chats feature is coming soon!',
+        });
+      }
+    },
+    {
+      id: 'settings',
+      title: 'Settings',
+      icon: 'settings',
+      iconType: 'Feather',
+      onPress: () => {
+        navigation.navigate("Settings");
+      }
+    },
+    {
+      id: 'clear_all',
+      title: 'Clear All Chats',
+      icon: 'trash-2',
+      iconType: 'Feather',
+      destructive: true,
+      onPress: () => {
+        Alert.alert(
+          'Clear All Chats',
+          'Are you sure you want to clear all chat history? This action cannot be undone.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Clear All',
+              style: 'destructive',
+              onPress: () => {
+                Toast.show({
+                  type: 'success',
+                  text1: 'Cleared',
+                  text2: 'All chats have been cleared',
+                });
+              }
+            }
+          ]
+        );
+      }
+    },
+  ];
+
+  // In renderItem function, update the lastMessageContent logic
   const renderItem = ({ item }: any) => {
     const profilePic = getProfilePicture(item);
     const displayName = getDisplayName(item);
-    const lastMessageContent = item.lastMessage?.content || "No messages yet";
-    const lastMessageTime = item.lastMessage?.createdAt || item.updatedAt;
-    const isUnread = item.unreadCount > 0;
-    const isFromCurrentUser =
-      item.lastMessage?.senderId === currentUser?.id ||
-      item.lastMessage?.senderId === currentUser?._id;
+
+    // ✅ More robust last message extraction
+    let lastMessageContent = "No messages yet";
+    let lastMessageTime = item.updatedAt;
+    let isFromCurrentUser = false;
+
+    // Try to get last message from different possible locations
+    if (item.lastMessage) {
+      // Check if lastMessage has content field
+      if (item.lastMessage.content) {
+        lastMessageContent = item.lastMessage.content;
+        lastMessageTime = item.lastMessage.createdAt || item.updatedAt;
+      }
+      // Check if lastMessage has text field
+      else if (item.lastMessage.text) {
+        lastMessageContent = item.lastMessage.text;
+        lastMessageTime = item.lastMessage.createdAt || item.updatedAt;
+      }
+      // Check if lastMessage is a string
+      else if (typeof item.lastMessage === 'string') {
+        lastMessageContent = item.lastMessage;
+      }
+      // Check if lastMessage has sender info
+      if (item.lastMessage.senderId) {
+        isFromCurrentUser =
+          item.lastMessage.senderId === currentUser?.id ||
+          item.lastMessage.senderId === currentUser?._id;
+      }
+      if (item.lastMessage.sender) {
+        isFromCurrentUser =
+          item.lastMessage.sender === currentUser?.id ||
+          item.lastMessage.sender === currentUser?._id;
+      }
+    }
+
+    // If still no content, check other possible fields
+    if (lastMessageContent === "No messages yet") {
+      if (item.lastMessageText) {
+        lastMessageContent = item.lastMessageText;
+      } else if (item.recentMessage) {
+        lastMessageContent = item.recentMessage;
+      } else if (item.latestMessage) {
+        lastMessageContent = item.latestMessage;
+      }
+    }
+
+    const isUnread = (item.unreadCount || 0) > 0;
+
+    // Debug log
+    console.log("📝 Chat item:", {
+      displayName,
+      lastMessageContent,
+      lastMessageTime,
+      isUnread,
+      isFromCurrentUser,
+      unreadCount: item.unreadCount,
+      hasLastMessage: !!item.lastMessage
+    });
 
     return (
       <TouchableOpacity
@@ -141,7 +279,6 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
         onPress={() => handleChatPress(item)}
         activeOpacity={0.7}
       >
-        {/* ✅ Fix 3: Show real profile picture or default avatar */}
         {profilePic ? (
           <Image source={{ uri: profilePic }} style={styles.avatar} />
         ) : (
@@ -185,13 +322,11 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
       </TouchableOpacity>
     );
   };
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       <View style={styles.header}>
-        {/* ✅ Fix 1: Gradient Text using LinearGradient with text inside */}
         <LinearGradient
           colors={['#8B5CF6', '#EC4899']}
           start={{ x: 0, y: 0 }}
@@ -201,10 +336,9 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
           <Text style={styles.headerTitle}>Messages</Text>
         </LinearGradient>
 
-        {/* ✅ Fix 2: Three-dots menu icon with options */}
         <TouchableOpacity
           style={styles.menuButton}
-          onPress={handleMenuPress}
+          onPress={() => setMenuVisible(true)}
           activeOpacity={0.7}
         >
           <Feather name="more-vertical" size={24} color="#6B7280" />
@@ -253,9 +387,12 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
         />
       )}
 
-      <TouchableOpacity style={styles.newMessageButton}>
-        <Ionicons name="create-outline" size={24} color="#fff" />
-      </TouchableOpacity>
+      <CustomMenu
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        options={menuOptions}
+        title="Chat Options"
+      />
     </SafeAreaView>
   );
 }
@@ -276,7 +413,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6"
   },
-  // ✅ Fix 1: Gradient header with text
   gradientHeader: {
     paddingHorizontal: 0,
     paddingVertical: 0,
@@ -290,7 +426,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     letterSpacing: -0.5,
   },
-  // ✅ Fix 2: Menu button
   menuButton: {
     width: 40,
     height: 40,
@@ -335,7 +470,6 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 26,
   },
-  // ✅ Fix 3: Default avatar
   defaultAvatar: {
     width: 52,
     height: 52,
@@ -447,4 +581,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 40,
   },
-}); 
+});

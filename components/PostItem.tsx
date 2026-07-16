@@ -238,12 +238,12 @@ export default function PostItem({
                     {localLikeCount.toLocaleString()} {localLikeCount === 1 ? 'like' : 'likes'}
                 </Text>
 
-                {post.caption && (
+                {/* {post.caption && (
                     <Text style={styles.postCaption}>
                         <Text style={styles.captionUsername}>{post.user?.username}</Text>
                         {' '}{post.caption}
                     </Text>
-                )}
+                )} */}
 
                 {post.comments?.length > 0 && (
                     <TouchableOpacity

@@ -5,28 +5,31 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Toast from 'react-native-toast-message';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   useCreateReminderMutation,
   useUpdateReminderMutation,
   useGetRemindersQuery,
 } from '../store/api/remindersApi';
 
+// Import reusable components
+import FormInput from '../components/FormInput';
+import DateTimePickerField from '../components/DateTimePickerField';
+import ReminderItem from '../components/ReminderItem';
+
 export default function AddReminderScreen({ navigation, route }: any) {
   const reminder = route?.params?.reminder;
   const isEditing = !!reminder;
 
-  // Get today's date in YYYY-MM-DD format
   const today = new Date();
   const defaultDate = today.toISOString().split('T')[0];
-  
+
   const [title, setTitle] = useState(reminder?.title || '');
   const [description, setDescription] = useState(reminder?.description || '');
   const [date, setDate] = useState(reminder?.reminderDate?.split('T')[0] || defaultDate);
@@ -40,7 +43,6 @@ export default function AddReminderScreen({ navigation, route }: any) {
   const isLoading = isCreating || isUpdating;
   const reminders = remindersData?.reminders || [];
 
-  // Convert date string to Date object
   const getDateObject = () => {
     if (date) {
       const [year, month, day] = date.split('-').map(Number);
@@ -49,7 +51,6 @@ export default function AddReminderScreen({ navigation, route }: any) {
     return new Date();
   };
 
-  // Convert time string to Date object
   const getTimeObject = () => {
     if (time) {
       const [hours, minutes] = time.split(':').map(Number);
@@ -62,7 +63,6 @@ export default function AddReminderScreen({ navigation, route }: any) {
     return dateObj;
   };
 
-  // Handle date change
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (event.type === 'set' && selectedDate) {
@@ -76,7 +76,6 @@ export default function AddReminderScreen({ navigation, route }: any) {
     }
   };
 
-  // Handle time change
   const handleTimeChange = (event: any, selectedTime?: Date) => {
     setShowTimePicker(Platform.OS === 'ios');
     if (event.type === 'set' && selectedTime) {
@@ -99,7 +98,6 @@ export default function AddReminderScreen({ navigation, route }: any) {
       return;
     }
 
-    // Validate date format
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       Toast.show({
         type: 'error',
@@ -109,7 +107,6 @@ export default function AddReminderScreen({ navigation, route }: any) {
       return;
     }
 
-    // Validate time format
     if (!time || !/^\d{2}:\d{2}$/.test(time)) {
       Toast.show({
         type: 'error',
@@ -120,11 +117,11 @@ export default function AddReminderScreen({ navigation, route }: any) {
     }
 
     try {
-    const reminderData = {
+      const reminderData = {
         title: title.trim(),
         description: description.trim(),
         reminderDate: date,
-      reminderTime: time,
+        reminderTime: time,
       };
 
       if (isEditing) {
@@ -132,7 +129,7 @@ export default function AddReminderScreen({ navigation, route }: any) {
           reminderId: reminder._id,
           data: reminderData,
         }).unwrap();
-        
+
         Toast.show({
           type: 'success',
           text1: 'Success',
@@ -140,7 +137,7 @@ export default function AddReminderScreen({ navigation, route }: any) {
         });
       } else {
         await createReminder(reminderData).unwrap();
-        
+
         Toast.show({
           type: 'success',
           text1: 'Success',
@@ -148,7 +145,6 @@ export default function AddReminderScreen({ navigation, route }: any) {
         });
       }
 
-      // Refresh reminders list
       refetchReminders();
       navigation.goBack();
     } catch (error: any) {
@@ -160,191 +156,145 @@ export default function AddReminderScreen({ navigation, route }: any) {
     }
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
+  };
+
+  const getDaysLeft = (reminderDate: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const reminder = new Date(reminderDate);
+    reminder.setHours(0, 0, 0, 0);
+    const diffTime = reminder.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+      {/* Enhanced Header with Gradient */}
+      <LinearGradient
+        colors={['#FFFFFF', '#F9FAFB']}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={24} color="#8B5CF6" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {isEditing ? 'Edit Reminder' : 'Add Reminder'}
-        </Text>
-        <TouchableOpacity onPress={handleSave} disabled={isLoading}>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>
+            {isEditing ? 'Edit Reminder' : 'Add Reminder'}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={isLoading}
+          style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+        >
           {isLoading ? (
-            <ActivityIndicator color="#8B5CF6" />
+            <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.saveButton}>Save</Text>
+            <LinearGradient
+              colors={['#8B5CF6', '#EC4899']}
+              style={styles.saveGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.saveButtonText}>Save</Text>
+            </LinearGradient>
           )}
         </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Title */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Title *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter reminder title"
-            placeholderTextColor="#9CA3AF"
-            value={title}
-            onChangeText={setTitle}
-            maxLength={100}
-          />
-        </View>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.contentContainer}
+      >
+        {/* Title Input */}
+        <FormInput
+          label="Title"
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Enter reminder title"
+          required
+          maxLength={100}
+          icon="pencil-outline"
+        />
 
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Add description (optional)"
-            placeholderTextColor="#9CA3AF"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={4}
-            maxLength={500}
-          />
-        </View>
+        {/* Description Input */}
+        <FormInput
+          label="Description"
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Add description (optional)"
+          multiline
+          numberOfLines={4}
+          maxLength={500}
+          icon="document-text-outline"
+        />
 
-        {/* Date */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Date * (YYYY-MM-DD)</Text>
-          <TouchableOpacity
-            onPress={() => setShowDatePicker(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.dateTimeInputWrapper}>
-              <Ionicons name="calendar-outline" size={20} color="#6B7280" style={styles.inputIcon} />
-              <Text style={styles.dateTimeInput}>
-                {date || 'Select date'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={getDateObject()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleDateChange}
-              minimumDate={new Date()}
-            />
-          )}
-          <Text style={styles.helperText}>Tap to select date</Text>
-        </View>
+        {/* Date Picker */}
+        <DateTimePickerField
+          label="Date"
+          value={date}
+          onPress={() => setShowDatePicker(true)}
+          showPicker={showDatePicker}
+          onDateChange={handleDateChange}
+          dateObject={getDateObject()}
+          mode="date"
+          icon="calendar-outline"
+          placeholder="Select date"
+          helperText="Tap to select date"
+          required
+        />
 
-        {/* Time */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Time * (HH:MM)</Text>
-          <TouchableOpacity
-            onPress={() => setShowTimePicker(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.dateTimeInputWrapper}>
-              <Ionicons name="time-outline" size={20} color="#6B7280" style={styles.inputIcon} />
-              <Text style={styles.dateTimeInput}>
-                {time || 'Select time'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-          {showTimePicker && (
-            <DateTimePicker
-              value={getTimeObject()}
-              mode="time"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleTimeChange}
-              is24Hour={false}
-            />
-          )}
-          <Text style={styles.helperText}>Tap to select time</Text>
-        </View>
+        {/* Time Picker */}
+        <DateTimePickerField
+          label="Time"
+          value={time}
+          onPress={() => setShowTimePicker(true)}
+          showPicker={showTimePicker}
+          onDateChange={handleTimeChange}
+          dateObject={getTimeObject()}
+          mode="time"
+          icon="time-outline"
+          placeholder="Select time"
+          helperText="Tap to select time"
+          required
+        />
 
         {/* Saved Reminders List */}
         {reminders.length > 0 && (
           <View style={styles.remindersSection}>
-            <Text style={styles.remindersSectionTitle}>Saved Reminders</Text>
-            <View style={styles.remindersList}>
-              {reminders.slice(0, 5).map((savedReminder: any) => {
-                const formatDate = (dateString: string) => {
-                  const date = new Date(dateString);
-                  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                  const day = date.getDate();
-                  const month = months[date.getMonth()];
-                  const year = date.getFullYear();
-                  return `${day} ${month} ${year}`;
-                };
-
-                const getDaysLeft = (reminderDate: string) => {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const reminder = new Date(reminderDate);
-                  reminder.setHours(0, 0, 0, 0);
-                  const diffTime = reminder.getTime() - today.getTime();
-                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                  return diffDays;
-                };
-
-                const daysLeft = getDaysLeft(savedReminder.reminderDate);
-                const isOverdue = daysLeft < 0;
-                const isToday = daysLeft === 0;
-
-                return (
-                  <TouchableOpacity
-                    key={savedReminder._id}
-                    style={styles.reminderItem}
-                    onPress={() => {
-                      navigation.replace('AddReminder', { reminder: savedReminder });
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.reminderItemContent}>
-                      <View style={styles.reminderItemHeader}>
-                        <Text style={styles.reminderItemTitle} numberOfLines={1}>
-                          {savedReminder.title}
-                        </Text>
-                        {isOverdue ? (
-                          <View style={styles.reminderBadgeOverdue}>
-                            <Text style={[styles.reminderBadgeText, { color: '#EF4444' }]}>Overdue</Text>
-                          </View>
-                        ) : isToday ? (
-                          <View style={styles.reminderBadgeToday}>
-                            <Text style={[styles.reminderBadgeText, { color: '#F59E0B' }]}>Today</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      
-                      {savedReminder.description && (
-                        <Text style={styles.reminderItemDescription} numberOfLines={1}>
-                          {savedReminder.description}
-                        </Text>
-                      )}
-                      
-                      <View style={styles.reminderItemMeta}>
-                        <View style={styles.reminderMetaItem}>
-                          <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
-                          <Text style={styles.reminderMetaText}>
-                            {formatDate(savedReminder.reminderDate)}
-                          </Text>
-                        </View>
-                        <View style={styles.reminderMetaItem}>
-                          <Ionicons name="time-outline" size={14} color="#9CA3AF" />
-                          <Text style={styles.reminderMetaText}>
-                            {savedReminder.reminderTime}
-                          </Text>
-                        </View>
-                        {!isOverdue && !isToday && (
-                          <Text style={styles.reminderDaysLeft}>
-                            {daysLeft} {daysLeft === 1 ? 'day' : 'days'} left
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.remindersSectionHeader}>
+              <Text style={styles.remindersSectionTitle}>Saved Reminders</Text>
+              <View style={styles.remindersCountBadge}>
+                <Text style={styles.remindersCountText}>{reminders.length}</Text>
+              </View>
             </View>
+
+            {reminders.slice(0, 5).map((savedReminder: any) => (
+              <ReminderItem
+                key={savedReminder._id}
+                reminder={savedReminder}
+                onPress={() => {
+                  navigation.replace('AddReminder', { reminder: savedReminder });
+                }}
+                formatDate={formatDate}
+                getDaysLeft={getDaysLeft}
+              />
+            ))}
+
             {reminders.length > 5 && (
               <TouchableOpacity
                 style={styles.viewAllButton}
@@ -353,6 +303,7 @@ export default function AddReminderScreen({ navigation, route }: any) {
                 <Text style={styles.viewAllButtonText}>
                   View All Reminders ({reminders.length})
                 </Text>
+                <Ionicons name="chevron-forward" size={18} color="#8B5CF6" />
               </TouchableOpacity>
             )}
           </View>
@@ -372,164 +323,88 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#ffffff',
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#F3F4F6',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: '700',
+    color: '#111827',
   },
   saveButton: {
-    fontSize: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveGradient: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  saveButtonText: {
+    fontSize: 15,
     fontWeight: '600',
-    color: '#8B5CF6',
+    color: '#FFFFFF',
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 20,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  textArea: {
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  dateTimeRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  dateTimeInputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: 12,
-  },
-  inputIcon: {
-    marginRight: 8,
-  },
-  dateTimeInput: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  helperText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 4,
-    fontStyle: 'italic',
+    paddingBottom: 40,
   },
   remindersSection: {
-    marginTop: 8,
-    marginBottom: 24,
+    marginTop: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
-  remindersSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 12,
-  },
-  remindersList: {
-    gap: 8,
-  },
-  reminderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 12,
-    marginBottom: 8,
-  },
-  reminderItemContent: {
-    flex: 1,
-  },
-  reminderItemHeader: {
+  remindersSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 16,
   },
-  reminderItemTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-    flex: 1,
+  remindersSectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
   },
-  reminderBadgeOverdue: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 8,
+  remindersCountBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
-  reminderBadgeToday: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 8,
-  },
-  reminderBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  reminderItemDescription: {
+  remindersCountText: {
     fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 8,
-  },
-  reminderItemMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  reminderMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  reminderMetaText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  reminderDaysLeft: {
-    fontSize: 12,
+    fontWeight: '600',
     color: '#8B5CF6',
-    fontWeight: '500',
   },
   viewAllButton: {
-    marginTop: 8,
-    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
     backgroundColor: '#F3F4F6',
-    borderRadius: 8,
+    borderRadius: 12,
+    gap: 6,
+    marginTop: 4,
   },
   viewAllButtonText: {
     fontSize: 14,
