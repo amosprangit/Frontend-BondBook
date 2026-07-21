@@ -148,6 +148,7 @@ export default function NotificationScreen({ navigation }: { navigation: any }) 
     }
   };
 
+  // In NotificationScreen.tsx
   const handleNotificationPress = async (notification: Notification) => {
     if (!notification.isRead) {
       try {
@@ -179,6 +180,7 @@ export default function NotificationScreen({ navigation }: { navigation: any }) 
       case 'mention':
       case 'new_post':
         if (data.relatedId) {
+          // ✅ Now navigates to PostDetail
           navigation.navigate('PostDetail', { postId: data.relatedId });
         }
         break;
@@ -312,7 +314,7 @@ export default function NotificationScreen({ navigation }: { navigation: any }) 
       : () => handleRejectRequest(request._id);
 
     return (
-      <View style={styles.requestItem}>
+      <View style={styles.requestItem} key={request._id}>
         {avatarUri ? (
           <Image source={{ uri: avatarUri }} style={styles.avatar} />
         ) : (
@@ -359,6 +361,24 @@ export default function NotificationScreen({ navigation }: { navigation: any }) 
 
   const hasRequests = followRequests.length > 0 || mergeRequests.length > 0;
 
+  // ✅ Helper function to render request lists with proper keys
+  const renderRequestList = (requests: any[], type: 'follow' | 'merge') => {
+    if (requests.length === 0) return null;
+    
+    const title = type === 'follow' ? 'Follow Requests' : 'Connection Requests';
+    
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {requests.map((req) => (
+          <View key={req._id}>
+            {renderRequestItem(req, type)}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -384,21 +404,11 @@ export default function NotificationScreen({ navigation }: { navigation: any }) 
           }
           ListHeaderComponent={
             <>
-              {/* Follow Requests */}
-              {followRequests.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Follow Requests</Text>
-                  {followRequests.map((req) => renderRequestItem(req, 'follow'))}
-                </View>
-              )}
-
-              {/* Merge Requests */}
-              {mergeRequests.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Connection Requests</Text>
-                  {mergeRequests.map((req) => renderRequestItem(req, 'merge'))}
-                </View>
-              )}
+              {/* ✅ Follow Requests with proper keys */}
+              {renderRequestList(followRequests, 'follow')}
+              
+              {/* ✅ Merge Requests with proper keys */}
+              {renderRequestList(mergeRequests, 'merge')}
             </>
           }
           ListEmptyComponent={

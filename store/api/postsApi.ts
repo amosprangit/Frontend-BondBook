@@ -1,5 +1,5 @@
-import { createApi } from '@reduxjs/toolkit/query/react';
-import { createBaseQueryWithLogger } from './baseQuery';
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { createBaseQueryWithLogger } from "./baseQuery";
 
 export interface Post {
   _id: string;
@@ -100,46 +100,46 @@ export interface CommentPostResponse {
 }
 
 export const postsApi = createApi({
-  reducerPath: 'postsApi',
+  reducerPath: "postsApi",
   baseQuery: createBaseQueryWithLogger(),
-  tagTypes: ['Posts'],
+  tagTypes: ["Posts"],
   endpoints: (builder) => ({
     getPosts: builder.query<PostsResponse, void>({
       query: () => ({
-        url: '/api/posts/',
-        method: 'GET',
+        url: "/api/posts/",
+        method: "GET",
       }),
-      providesTags: ['Posts'],
+      providesTags: ["Posts"],
     }),
     getMyPosts: builder.query<PostsResponse, void>({
       query: () => ({
-        url: '/api/posts/me',
-        method: 'GET',
+        url: "/api/posts/me",
+        method: "GET",
       }),
-      providesTags: ['Posts'],
+      providesTags: ["Posts"],
     }),
-    getUserPosts: builder.query<UserPostsResponse, string>({
-      query: (userId) => ({
-        url: `/api/posts/user/${userId}/profile`,
-        method: 'GET',
+    getPostById: builder.query<{ success: boolean; post: any }, string>({
+      query: (postId) => ({
+        url: `/api/posts/${postId}`,
+        method: "GET",
       }),
-      providesTags: ['Posts'],
+      providesTags: (result, error, postId) => [{ type: "Posts", id: postId }],
     }),
     createPost: builder.mutation<CreatePostResponse, FormData>({
       query: (formData) => {
-        console.log('Creating post...');
+        console.log("Creating post...");
         return {
-          url: '/api/posts/',
-          method: 'POST',
+          url: "/api/posts/",
+          method: "POST",
           body: formData,
         };
       },
-      invalidatesTags: ['Posts'],
+      invalidatesTags: ["Posts"],
     }),
     likePost: builder.mutation<LikePostResponse, LikePostRequest>({
       query: ({ postId, action }) => ({
         url: `/api/posts/${postId}/likes`,
-        method: 'PUT',
+        method: "PUT",
         body: { action: action, like: action },
       }),
       // Don't invalidate - we update cache manually for instant UI feedback
@@ -147,28 +147,29 @@ export const postsApi = createApi({
     commentPost: builder.mutation<CommentPostResponse, CommentPostRequest>({
       query: ({ postId, text }) => ({
         url: `/api/posts/${postId}/comments`,
-        method: 'POST',
+        method: "POST",
         body: { comment: text },
       }),
-      invalidatesTags: ['Posts'],
+      invalidatesTags: ["Posts"],
     }),
-    deletePost: builder.mutation<{ success: boolean; message: string }, string>({
-      query: (postId) => ({
-        url: `/api/posts/${postId}`,
-        method: 'DELETE',
-      }),
-      invalidatesTags: ['Posts'],
-    }),
+    deletePost: builder.mutation<{ success: boolean; message: string }, string>(
+      {
+        query: (postId) => ({
+          url: `/api/posts/${postId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["Posts"],
+      },
+    ),
   }),
 });
 
 export const {
   useGetPostsQuery,
+  useGetPostByIdQuery,
   useGetMyPostsQuery,
-  useGetUserPostsQuery,
   useCreatePostMutation,
   useLikePostMutation,
   useCommentPostMutation,
   useDeletePostMutation,
 } = postsApi;
-

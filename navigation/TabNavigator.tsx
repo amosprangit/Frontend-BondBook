@@ -42,7 +42,6 @@ const AnimatedTabIcon = ({
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const translateYAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     if (isFocused) {
@@ -57,12 +56,6 @@ const AnimatedTabIcon = ({
           toValue: -6,
           friction: 4,
           tension: 30,
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 300,
-          easing: Easing.ease,
           useNativeDriver: true,
         }),
       ]).start();
@@ -99,21 +92,10 @@ const AnimatedTabIcon = ({
           tension: 30,
           useNativeDriver: true,
         }),
-        Animated.timing(rotateAnim, {
-          toValue: 0,
-          duration: 200,
-          easing: Easing.ease,
-          useNativeDriver: true,
-        }),
       ]).start();
       pulseAnim.setValue(1);
     }
   }, [isFocused]);
-
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '10deg'],
-  });
 
   const getIcon = () => {
     switch (iconFamily) {
@@ -150,7 +132,6 @@ const AnimatedTabIcon = ({
           transform: [
             { scale: scaleAnim },
             { translateY: translateYAnim },
-            { rotate },
           ],
         }}
       >
@@ -193,7 +174,6 @@ const AnimatedTabIcon = ({
 // Custom Action Button for Camera
 const ActionButton = ({ isFocused }: any) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
@@ -203,12 +183,6 @@ const ActionButton = ({ isFocused }: any) => {
           toValue: 1.15,
           friction: 3,
           tension: 40,
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.ease,
           useNativeDriver: true,
         }),
       ]).start();
@@ -230,28 +204,15 @@ const ActionButton = ({ isFocused }: any) => {
         ])
       ).start();
     } else {
-      Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 3,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 0,
-          duration: 300,
-          easing: Easing.ease,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
       pulseAnim.setValue(1);
     }
   }, [isFocused]);
-
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
 
   return (
     <View style={styles.actionContainer}>
@@ -271,9 +232,7 @@ const ActionButton = ({ isFocused }: any) => {
             }
           ]}
         >
-          <Animated.View style={{ transform: [{ rotate }] }}>
-            <Entypo name="camera" size={28} color="#FFFFFF" />
-          </Animated.View>
+          <Entypo name="camera" size={28} color="#FFFFFF" />
         </Animated.View>
       </Animated.View>
     </View>

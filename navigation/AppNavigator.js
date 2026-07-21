@@ -19,6 +19,7 @@ import SettingsScreen from '../screens/settings';
 import NotificationScreen from '../screens/notifications';
 import ChatListScreen from '../screens/chatList';
 import ChatScreen from '../screens/chat';
+import PostDetail from '../screens/postDetail';
 
 const Stack = createNativeStackNavigator();
 
@@ -80,6 +81,7 @@ export default function AppNavigator() {
       <Stack.Screen name="MutualConnectionProfile" component={MutualConnectionProfileScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="UploadPost" component={uploadPostScreen} />
+      <Stack.Screen name="PostDetail" component={PostDetail} />
     </Stack.Navigator>
   );
 }

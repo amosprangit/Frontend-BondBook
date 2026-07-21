@@ -42,7 +42,7 @@ import {
   useLikeStoryMutation,
   useUnlikeStoryMutation
 } from '../store/api/storiesApi';
-import { useGetPostsQuery, useLikePostMutation, useCommentPostMutation, postsApi } from '../store/api/postsApi';
+import { useGetPostsQuery, useLikePostMutation, useCommentPostMutation, postsApi, Post } from '../store/api/postsApi';
 import { useToggleFollowMutation, useGetProfileQuery } from '../store/api/authApi';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 

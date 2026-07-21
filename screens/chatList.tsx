@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   RefreshControl,
   FlatList,
   Platform,
+  AppState,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,6 +21,7 @@ import { useGetMutualConnectionsQuery } from "../store/api/mutualConnectionsApi"
 import { useAppSelector } from "../store/hooks";
 import Toast from 'react-native-toast-message';
 import CustomMenu from "../components/custom_menu";
+import messaging from '@react-native-firebase/messaging';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -37,27 +39,84 @@ interface MenuOption {
 export default function ChatListScreen({ navigation }: { navigation: any }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [menuVisible, setMenuVisible] = useState(false);
+  const [newMessageNotification, setNewMessageNotification] = useState<any>(null);
   const { user: currentUser } = useAppSelector((state) => state.auth);
+
+  // ✅ Real-time polling with refetch on new message
   const { data, isLoading, refetch, isFetching } = useGetMutualConnectionsQuery(undefined, {
-    pollingInterval: 5000
+    pollingInterval: 3000, // Check every 3 seconds for new messages
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
   });
 
   const mutualConnections = data?.mutualConnections || [];
 
-  // ✅ Debug: Log the data to see what's coming from API
-  console.log("📊 Mutual Connections Data:", JSON.stringify(mutualConnections[0], null, 2));
-
+  // ✅ Filter out the connection that has new message
   const filteredConnections = mutualConnections.filter((connection: any) =>
     connection.displayName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // ✅ Sort by latest message
   const sortedConnections = [...filteredConnections].sort((a: any, b: any) => {
     const dateA = a.lastMessage?.createdAt || a.updatedAt;
     const dateB = b.lastMessage?.createdAt || b.updatedAt;
     return new Date(dateB).getTime() - new Date(dateA).getTime();
   });
 
+  // ✅ Listen for new message notifications
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+      console.log('📩 New message notification received:', remoteMessage);
+
+      // Check if it's a new message notification
+      if (remoteMessage.data?.type === 'new_message') {
+        const mutualConnectionId = remoteMessage.data?.mutualConnectionId;
+
+        if (mutualConnectionId) {
+          console.log('🔄 New message for connection:', mutualConnectionId);
+
+          // Show a toast notification
+          Toast.show({
+            type: 'info',
+            text1: remoteMessage.notification?.title || 'New Message',
+            text2: remoteMessage.notification?.body || 'You have a new message',
+            visibilityTime: 3000,
+          });
+
+          // ✅ Refetch the chat list to show the new message
+          refetch();
+
+          // ✅ Update the connection in the list with new message
+          setNewMessageNotification({
+            connectionId: mutualConnectionId,
+            timestamp: Date.now(),
+          });
+        }
+      }
+    });
+
+    // ✅ Handle background messages
+    messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+      console.log('📦 Background message:', remoteMessage);
+      // Refetch when app comes back to foreground
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // ✅ Refetch when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        refetch();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   const handleChatPress = (connection: any) => {
+    // ✅ Mark the connection as read when user opens chat
     navigation.navigate("Chats", {
       mutualConnectionId: connection._id,
       connectionId: connection.connectionId,
@@ -99,9 +158,7 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
     return "User";
   };
 
-  // ✅ FIXED: Get last message content with fallbacks
   const getLastMessageContent = (item: any) => {
-    // Try multiple possible paths for the last message
     if (item?.lastMessage?.content) {
       return item.lastMessage.content;
     }
@@ -112,19 +169,16 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
       return item.lastMessage.message;
     }
     if (item?.lastMessage) {
-      // If lastMessage exists but has no content field, stringify it
       return typeof item.lastMessage === 'string'
         ? item.lastMessage
         : JSON.stringify(item.lastMessage);
     }
-    // Check if there's a lastMessageText directly on the item
     if (item?.lastMessageText) {
       return item.lastMessageText;
     }
     return "No messages yet";
   };
 
-  // ✅ FIXED: Get last message time with fallbacks
   const getLastMessageTime = (item: any) => {
     if (item?.lastMessage?.createdAt) {
       return item.lastMessage.createdAt;
@@ -138,7 +192,6 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
     return item.updatedAt;
   };
 
-  // ✅ FIXED: Check if message is from current user
   const isMessageFromCurrentUser = (item: any) => {
     const senderId = item?.lastMessage?.senderId || item?.lastMessage?.sender?._id || item?.lastMessage?.sender;
     if (!senderId) return false;
@@ -210,33 +263,25 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
     },
   ];
 
-  // In renderItem function, update the lastMessageContent logic
   const renderItem = ({ item }: any) => {
     const profilePic = getProfilePicture(item);
     const displayName = getDisplayName(item);
 
-    // ✅ More robust last message extraction
     let lastMessageContent = "No messages yet";
     let lastMessageTime = item.updatedAt;
     let isFromCurrentUser = false;
 
-    // Try to get last message from different possible locations
     if (item.lastMessage) {
-      // Check if lastMessage has content field
       if (item.lastMessage.content) {
         lastMessageContent = item.lastMessage.content;
         lastMessageTime = item.lastMessage.createdAt || item.updatedAt;
-      }
-      // Check if lastMessage has text field
-      else if (item.lastMessage.text) {
+      } else if (item.lastMessage.text) {
         lastMessageContent = item.lastMessage.text;
         lastMessageTime = item.lastMessage.createdAt || item.updatedAt;
-      }
-      // Check if lastMessage is a string
-      else if (typeof item.lastMessage === 'string') {
+      } else if (typeof item.lastMessage === 'string') {
         lastMessageContent = item.lastMessage;
       }
-      // Check if lastMessage has sender info
+
       if (item.lastMessage.senderId) {
         isFromCurrentUser =
           item.lastMessage.senderId === currentUser?.id ||
@@ -249,7 +294,6 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
       }
     }
 
-    // If still no content, check other possible fields
     if (lastMessageContent === "No messages yet") {
       if (item.lastMessageText) {
         lastMessageContent = item.lastMessageText;
@@ -262,21 +306,19 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
 
     const isUnread = (item.unreadCount || 0) > 0;
 
-    // Debug log
-    console.log("📝 Chat item:", {
-      displayName,
-      lastMessageContent,
-      lastMessageTime,
-      isUnread,
-      isFromCurrentUser,
-      unreadCount: item.unreadCount,
-      hasLastMessage: !!item.lastMessage
-    });
-
     return (
       <TouchableOpacity
-        style={styles.chatItem}
-        onPress={() => handleChatPress(item)}
+        style={[
+          styles.chatItem,
+          isUnread && styles.unreadChatItem,
+          // ✅ Highlight if this connection has a new message
+          newMessageNotification?.connectionId === item._id && styles.newMessageHighlight,
+        ]}
+        onPress={() => {
+          // ✅ Clear the highlight when tapped
+          setNewMessageNotification(null);
+          handleChatPress(item);
+        }}
         activeOpacity={0.7}
       >
         {profilePic ? (
@@ -322,6 +364,7 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
       </TouchableOpacity>
     );
   };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -464,6 +507,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+  },
+  unreadChatItem: {
+    backgroundColor: "#FEF9E7",
+    borderLeftWidth: 3,
+    borderLeftColor: "#8B5CF6",
+  },
+  newMessageHighlight: {
+    backgroundColor: "#E8F0FE",
+    borderWidth: 1,
+    borderColor: "#8B5CF6",
   },
   avatar: {
     width: 52,
