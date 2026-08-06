@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -8,6 +8,7 @@ import {
     Animated,
     Dimensions,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -80,6 +81,222 @@ export default function PostItem({
 
     const isOwnPost = post.user?._id === user?._id;
 
+    // ✅ Debug function to check navigation state
+    const debugNavigation = () => {
+        try {
+            const state = navigation.getState();
+            const routes = state?.routes || [];
+            console.log('📊 Available screens:', routes.map(r => r.name));
+            console.log('📊 Post user:', {
+                userId: post.user?._id,
+                username: post.user?.username,
+            });
+            return routes.map(r => r.name);
+        } catch (error) {
+            console.error('❌ Debug error:', error);
+            return [];
+        }
+    };
+
+    // ✅ Main navigation function - FIXED
+    const navigateToUserProfile = () => {
+        console.log('👤 Navigate to profile called');
+
+        try {
+            // Check if we have user data
+            if (!post.user) {
+                console.warn('⚠️ No user data in post');
+                Alert.alert('Error', 'User information not available');
+                return;
+            }
+
+            const userId = post.user._id;
+            if (!userId) {
+                console.warn('⚠️ No user ID found');
+                Alert.alert('Error', 'User ID not found');
+                return;
+            }
+
+            console.log('👤 Navigating to user:', {
+                userId: userId,
+                username: post.user.username,
+            });
+
+            // Get all available screens
+            const availableScreens = debugNavigation();
+            console.log('📊 Available screens:', availableScreens);
+
+            // Try different screen names
+            const possibleScreenNames = [
+                'Profile',
+                'UserProfile',
+                'UserInfo',
+                'ProfileScreen',
+                'UserDetails',
+                'OtherUserProfile',
+                'PublicProfile'
+            ];
+
+            // Find which screen exists in navigation
+            const existingScreen = possibleScreenNames.find(name =>
+                availableScreens.includes(name)
+            );
+
+            if (existingScreen) {
+                console.log(`✅ Found screen: ${existingScreen}`);
+
+                // Try to navigate with different parameter formats
+                try {
+                    // Try with userId
+                    navigation.navigate(existingScreen, {
+                        userId: userId,
+                        username: post.user.username,
+                    });
+                    console.log(`✅ Navigated to ${existingScreen} with userId`);
+                } catch (e1) {
+                    console.log('❌ Failed with userId, trying id:', e1);
+                    try {
+                        navigation.navigate(existingScreen, {
+                            id: userId,
+                            username: post.user.username,
+                        });
+                        console.log(`✅ Navigated to ${existingScreen} with id`);
+                    } catch (e2) {
+                        console.log('❌ Failed with id, trying uid:', e2);
+                        try {
+                            navigation.navigate(existingScreen, {
+                                uid: userId,
+                                username: post.user.username,
+                            });
+                            console.log(`✅ Navigated to ${existingScreen} with uid`);
+                        } catch (e3) {
+                            console.error('❌ All navigation attempts failed:', e3);
+                            Alert.alert('Error', 'Unable to open user profile');
+                        }
+                    }
+                }
+            } else {
+                console.warn('⚠️ No profile screen found in navigation');
+                Alert.alert('Error', 'Profile screen not found');
+            }
+
+        } catch (error) {
+            console.error('❌ Navigation error:', error);
+            Alert.alert('Error', 'Unable to open user profile');
+        }
+    };
+
+    // ✅ Alternative navigation function using push
+    const navigateToUserProfileWithPush = () => {
+        console.log('👤 Navigate to profile using push');
+
+        try {
+            const userId = post.user?._id;
+            if (!userId) {
+                console.warn('⚠️ No user ID');
+                return;
+            }
+
+            // Try to push to a new screen
+            const screenNames = ['Profile', 'UserProfile', 'UserInfo'];
+
+            for (const screenName of screenNames) {
+                try {
+                    navigation.push(screenName, {
+                        userId: userId,
+                        username: post.user?.username,
+                    });
+                    console.log(`✅ Pushed to ${screenName}`);
+                    return;
+                } catch (e) {
+                    console.log(`❌ Push to ${screenName} failed`);
+                }
+            }
+
+            // If all fails, try replace
+            try {
+                navigation.replace('Profile', { userId: userId });
+                console.log('✅ Replaced to Profile');
+            } catch (e) {
+                console.error('❌ All navigation methods failed:', e);
+            }
+
+        } catch (error) {
+            console.error('❌ Navigation error:', error);
+        }
+    };
+
+    // ✅ Combined navigation function - tries everything
+    const navigateToProfile = () => {
+        console.log('👤 Navigating to profile...');
+
+        try {
+            const userId = post.user?._id;
+            if (!userId) {
+                console.warn('⚠️ No user ID found');
+                return;
+            }
+
+            console.log('👤 User ID:', userId);
+            console.log('👤 Username:', post.user?.username);
+
+            // Get all available screens
+            const navState = navigation.getState();
+            const allScreens = navState?.routes?.map(r => r.name) || [];
+            console.log('📊 ALL AVAILABLE SCREENS:', allScreens);
+
+            // First try: find any screen with 'Profile' in name
+            const profileScreen = allScreens.find(name =>
+                name === 'Profile' ||
+                name === 'UserProfile' ||
+                name === 'UserInfo' ||
+                name.toLowerCase().includes('profile')
+            );
+
+            if (profileScreen) {
+                console.log(`✅ Found profile screen: ${profileScreen}`);
+                navigation.navigate(profileScreen, {
+                    userId: userId,
+                    username: post.user?.username,
+                });
+                return;
+            }
+
+            // Second try: use push with common screen names
+            const commonNames = ['Profile', 'UserProfile', 'UserInfo'];
+            for (const name of commonNames) {
+                try {
+                    navigation.push(name, { userId: userId });
+                    console.log(`✅ Navigated with push to: ${name}`);
+                    return;
+                } catch (e) {
+                    console.log(`❌ Push to ${name} failed`);
+                }
+            }
+
+            // Third try: navigate to the first screen that might be a user screen
+            const userScreen = allScreens.find(name =>
+                name.toLowerCase().includes('user')
+            );
+            if (userScreen) {
+                console.log(`✅ Found user screen: ${userScreen}`);
+                navigation.navigate(userScreen, { userId: userId });
+                return;
+            }
+
+            console.warn('⚠️ No suitable screen found');
+            Alert.alert('Error', 'Unable to open user profile');
+
+        } catch (error) {
+            console.error('❌ Navigation error:', error);
+        }
+    };
+
+    // Debug on mount
+    useEffect(() => {
+        debugNavigation();
+    }, []);
+
     return (
         <View style={styles.postCard}>
             <LinearGradient
@@ -91,12 +308,9 @@ export default function PostItem({
             <View style={styles.postHeader}>
                 <View style={styles.postProfileInfo}>
                     <TouchableOpacity
-                        onPress={() => {
-                            if (post.user?._id) {
-                                navigation.navigate('UserInfo', { userId: post.user._id });
-                            }
-                        }}
+                        onPress={navigateToProfile}
                         style={styles.profileImageWrapper}
+                        activeOpacity={0.7}
                     >
                         <Image
                             source={{
@@ -115,13 +329,12 @@ export default function PostItem({
 
                     <View style={styles.postUserInfo}>
                         <TouchableOpacity
-                            onPress={() => {
-                                if (post.user?._id) {
-                                    navigation.navigate('UserInfo', { userId: post.user._id });
-                                }
-                            }}
+                            onPress={navigateToProfile}
+                            activeOpacity={0.7}
                         >
-                            <Text style={styles.postUserName}>{post.user?.username || 'Unknown User'}</Text>
+                            <Text style={styles.postUserName}>
+                                {post.user?.username || 'Unknown User'}
+                            </Text>
                         </TouchableOpacity>
                         <Text style={styles.postTime}>
                             {new Date(post.createdAt).toLocaleDateString('en-US', {
@@ -237,13 +450,6 @@ export default function PostItem({
                 <Text style={styles.likeCount}>
                     {localLikeCount.toLocaleString()} {localLikeCount === 1 ? 'like' : 'likes'}
                 </Text>
-
-                {/* {post.caption && (
-                    <Text style={styles.postCaption}>
-                        <Text style={styles.captionUsername}>{post.user?.username}</Text>
-                        {' '}{post.caption}
-                    </Text>
-                )} */}
 
                 {post.comments?.length > 0 && (
                     <TouchableOpacity

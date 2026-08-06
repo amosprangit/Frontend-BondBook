@@ -118,6 +118,13 @@ export const postsApi = createApi({
       }),
       providesTags: ["Posts"],
     }),
+    getUserPosts: builder.query<UserPostsResponse, string>({
+      query: (userId) => ({
+        url: `/api/posts/user/${userId}/profile`,
+        method: "GET",
+      }),
+      providesTags: (result, error, userId) => [{ type: "Posts", id: userId }],
+    }),
     getPostById: builder.query<{ success: boolean; post: any }, string>({
       query: (postId) => ({
         url: `/api/posts/${postId}`,
@@ -168,6 +175,7 @@ export const {
   useGetPostsQuery,
   useGetPostByIdQuery,
   useGetMyPostsQuery,
+  useGetUserPostsQuery,
   useCreatePostMutation,
   useLikePostMutation,
   useCommentPostMutation,

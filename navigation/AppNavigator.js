@@ -20,6 +20,8 @@ import NotificationScreen from '../screens/notifications';
 import ChatListScreen from '../screens/chatList';
 import ChatScreen from '../screens/chat';
 import PostDetail from '../screens/postDetail';
+import CreateGroupScreen from '../screens/GroupScreens/CreateGroup';
+import ProfileScreen from '../screens/profile';
 
 const Stack = createNativeStackNavigator();
 
@@ -66,22 +68,28 @@ export default function AppNavigator() {
       screenOptions={{ headerShown: false }} 
       initialRouteName={isAuthenticated ? "Home" : "Login"}
     >
+      {/* auth routes */}
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="VerifyResetOtp" component={VerifyResetOtpScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      {/* Main tabs routes */}
       <Stack.Screen name="Home" component={TabNavigator} />
-      <Stack.Screen name="Notifications" component={NotificationScreen} />
       <Stack.Screen name="UserInfo" component={UserInfoScreen} />
       <Stack.Screen name="Reminders" component={RemindersScreen} />
       <Stack.Screen name="AddReminder" component={AddReminderScreen} />
-      <Stack.Screen name="ChatScreen" component={ChatListScreen} />
+      <Stack.Screen name="Notifications" component={NotificationScreen} />
+      {/* Chats Routes */}
       <Stack.Screen name="Chats" component={ChatScreen} />
+      <Stack.Screen name="ChatScreen" component={ChatListScreen} />
+      <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
       <Stack.Screen name="MutualConnectionProfile" component={MutualConnectionProfileScreen} />
-      <Stack.Screen name="Settings" component={SettingsScreen} />
+      {/* Post's Routes */}
       <Stack.Screen name="UploadPost" component={uploadPostScreen} />
       <Stack.Screen name="PostDetail" component={PostDetail} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      
     </Stack.Navigator>
   );
 }

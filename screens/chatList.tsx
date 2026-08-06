@@ -125,6 +125,15 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
     });
   };
 
+  const handleCreateGroup = () => {
+    setMenuVisible(false);
+    // Navigate to CreateGroup screen
+    navigation.navigate("CreateGroup", {
+      currentUser: currentUser,
+      mutualConnections: mutualConnections, // Pass connections to select members
+    });
+  };
+
   const formatTimestamp = (dateString: string) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -204,13 +213,7 @@ export default function ChatListScreen({ navigation }: { navigation: any }) {
       title: 'New Group Chat',
       icon: 'people',
       iconType: 'Ionicons',
-      onPress: () => {
-        Toast.show({
-          type: 'info',
-          text1: 'Coming Soon',
-          text2: 'Group chat feature is coming soon!',
-        });
-      }
+      onPress: handleCreateGroup, // ✅ Now navigates to CreateGroup screen
     },
     {
       id: 'archived',

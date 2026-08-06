@@ -7,6 +7,7 @@ import { notificationApi } from './api/notificationApi';
 import { mutualConnectionsApi } from './api/mutualConnectionsApi';
 import { remindersApi } from './api/remindersApi';
 import authReducer from './slices/authSlice';
+import { groupChatApi } from './api/groupChatApi';
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     [notificationApi.reducerPath]: notificationApi.reducer,
     [mutualConnectionsApi.reducerPath]: mutualConnectionsApi.reducer,
     [remindersApi.reducerPath]: remindersApi.reducer,
+    [groupChatApi.reducerPath]: groupChatApi.reducer,
     auth: authReducer,
   },
   middleware: (getDefaultMiddleware) =>
@@ -25,7 +27,8 @@ export const store = configureStore({
       .concat(postsApi.middleware)
       .concat(notificationApi.middleware)
       .concat(mutualConnectionsApi.middleware)
-      .concat(remindersApi.middleware),
+      .concat(remindersApi.middleware)
+      .concat(groupChatApi.middleware)
 });
 
 setupListeners(store.dispatch);

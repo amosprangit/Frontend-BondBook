@@ -1,3 +1,5 @@
+// HomeScreen.tsx - Updated handleFollowUser with FCM push notifications
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -22,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
+import messaging from '@react-native-firebase/messaging';
 
 // Import components
 import PostItem from '../components/PostItem';
@@ -44,6 +47,7 @@ import {
 } from '../store/api/storiesApi';
 import { useGetPostsQuery, useLikePostMutation, useCommentPostMutation, postsApi, Post } from '../store/api/postsApi';
 import { useToggleFollowMutation, useGetProfileQuery } from '../store/api/authApi';
+import { useSendFollowNotificationMutation } from '../store/api/notificationApi';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -59,8 +63,16 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
   const [uploadStory, { isLoading: isUploading }] = useUploadStoryMutation();
   const [deleteStory, { isLoading: isDeletingStory }] = useDeleteStoryMutation();
 
-  // ✅ Get real-time notification count for the bell icon
-  const { unreadCount, hasUnread, totalCount } = useNotificationCount();
+  // ✅ Get real-time notification count
+  const {
+    unreadCount,
+    hasUnread,
+    totalCount,
+    refetch: refetchNotifications
+  } = useNotificationCount();
+
+  // ✅ Follow notification mutation
+  const [sendFollowNotification] = useSendFollowNotificationMutation();
 
   // Story like hooks
   const [likeStory] = useLikeStoryMutation();
@@ -149,6 +161,9 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
   const [currentViewingUserIndex, setCurrentViewingUserIndex] = useState<number>(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
+  // Follow status tracking
+  const [followStatuses, setFollowStatuses] = useState<Record<string, { isFollowing: boolean }>>({});
+
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -166,7 +181,8 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
       await Promise.all([
         refetch(),
         refetchMyStories(),
-        refetchPosts()
+        refetchPosts(),
+        refetchNotifications()
       ]);
     } catch (error) {
       console.error('Refresh error:', error);
@@ -282,16 +298,97 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
     }
   };
 
-  // Handle follow
+  // ✅ UPDATED: Handle follow with FCM push notification
   const handleFollowUser = async (userId: string, isFollowing: boolean) => {
+    console.log('📤 Follow action:', { userId, isFollowing, currentUser: user?._id });
+
+    // Optimistic update for UI
+    setFollowStatuses(prev => ({
+      ...prev,
+      [userId]: { isFollowing: !isFollowing }
+    }));
+
+    dispatch(
+      postsApi.util.updateQueryData('getPosts', undefined, (draft) => {
+        const post = draft.posts?.find(p => p.user?._id === userId);
+        if (post && post.user) {
+          post.user.isFollowing = !isFollowing;
+          post.user.followersCount = isFollowing
+            ? Math.max(0, (post.user.followersCount || 1) - 1)
+            : (post.user.followersCount || 0) + 1;
+        }
+      })
+    );
+
     try {
-      await toggleFollow({ followUserId: userId }).unwrap();
-      await refetchPosts();
+      const response = await toggleFollow({ followUserId: userId }).unwrap();
+      console.log('✅ Follow response:', response);
+
+      setFollowStatuses(prev => ({
+        ...prev,
+        [userId]: { isFollowing: !isFollowing }
+      }));
+
+      // ✅ Send FCM push notification when following (not unfollowing)
+      if (!isFollowing && userId !== user?._id) {
+        console.log('📨 Sending FCM push notification to user:', userId);
+        try {
+          // Send notification via API (this should trigger FCM on backend)
+          const notificationResult = await sendFollowNotification({
+            targetUserId: userId
+          }).unwrap();
+
+          console.log('✅ FCM push notification sent:', notificationResult);
+
+          // The backend should handle sending the actual FCM push
+          // If backend doesn't send FCM, you can send directly from frontend:
+          // await sendDirectFCMNotification(userId);
+
+        } catch (notifError) {
+          console.error('❌ Error sending FCM notification:', notifError);
+          // Don't show error to user, just log it
+        }
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: isFollowing ? 'Unfollowed' : 'Following!',
+        text2: isFollowing ? 'You unfollowed this user' : `You are now following this user`,
+        visibilityTime: 2000,
+      });
+
+      // Refresh data to get updated notifications
+      await Promise.all([
+        refetchPosts(),
+        refetchNotifications()
+      ]);
+
     } catch (error: any) {
+      console.error('❌ Follow error:', error);
+
+      // Revert optimistic updates on error
+      setFollowStatuses(prev => ({
+        ...prev,
+        [userId]: { isFollowing }
+      }));
+
+      dispatch(
+        postsApi.util.updateQueryData('getPosts', undefined, (draft) => {
+          const post = draft.posts?.find(p => p.user?._id === userId);
+          if (post && post.user) {
+            post.user.isFollowing = isFollowing;
+            post.user.followersCount = isFollowing
+              ? (post.user.followersCount || 0) + 1
+              : Math.max(0, (post.user.followersCount || 1) - 1);
+          }
+        })
+      );
+
       Toast.show({
         type: 'error',
         text1: 'Action Failed',
         text2: error?.data?.message || 'Please try again',
+        visibilityTime: 3000,
       });
     }
   };
@@ -426,6 +523,13 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
     }
   );
 
+  // Refresh notifications when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refetchNotifications();
+    }, [])
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -439,13 +543,11 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
             resizeMode="contain"
           />
           <View style={styles.headerIcons}>
-            {/* ✅ Heart Icon - Navigates to Notifications */}
             <TouchableOpacity
               style={styles.headerIcon}
               onPress={() => navigation.navigate('Notifications')}
             >
               <Ionicons name="heart-outline" size={24} color="#000" />
-              {/* Show badge on heart icon for all notifications */}
               {totalCount > 0 && (
                 <View style={[styles.badge, styles.heartBadge]}>
                   <Text style={styles.badgeText}>
@@ -459,7 +561,6 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
               onPress={() => navigation.navigate('ChatScreen')}
             >
               <Ionicons name="chatbubble-outline" size={24} color="#000" />
-              {/* ✅ Dynamic Badge for unread notifications */}
               {hasUnread && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
@@ -477,24 +578,33 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
         ref={flatListRef}
         data={posts}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <PostItem
-            post={item}
-            user={user}
-            navigation={navigation}
-            handleFollowUser={handleFollowUser}
-            handleCommentPress={(post: any) => {
-              setSelectedPost(post);
-              setCommentsModalVisible(true);
-            }}
-            handleSharePost={(post: any) => {
-              setPostToShare(post);
-              setShareModalVisible(true);
-            }}
-            handleLikePost={handleLikePost}
-            isTogglingFollow={isTogglingFollow}
-          />
-        )}
+        renderItem={({ item }) => {
+          const userId = item.user?._id;
+          const followStatus = userId ? followStatuses[userId] : undefined;
+
+          return (
+            <PostItem
+              post={item}
+              user={user}
+              navigation={navigation}
+              handleFollowUser={handleFollowUser}
+              handleCommentPress={(post: any) => {
+                setSelectedPost(post);
+                setCommentsModalVisible(true);
+              }}
+              handleSharePost={(post: any) => {
+                setPostToShare(post);
+                setShareModalVisible(true);
+              }}
+              handleLikePost={handleLikePost}
+              isTogglingFollow={isTogglingFollow}
+              followStatus={followStatus}
+              onFollowStatusChange={() => {
+                refetchPosts();
+              }}
+            />
+          );
+        }}
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={onRefresh}
@@ -503,7 +613,6 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
         contentContainerStyle={styles.feedContent}
         ListHeaderComponent={
           <>
-            {/* Stories Section */}
             <StoriesSection
               stories={stories}
               myStories={myStories}
@@ -636,7 +745,7 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   heartBadge: {
-    backgroundColor: '#EF4444', // Red color for heart badge
+    backgroundColor: '#EF4444',
   },
   badgeText: {
     color: '#fff',

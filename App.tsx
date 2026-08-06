@@ -5,18 +5,17 @@ import { NavigationContainer, NavigationContainerRef } from '@react-navigation/n
 import { Provider } from 'react-redux';
 import Toast from 'react-native-toast-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { View, Text, ActivityIndicator, Button } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import AppNavigator from './navigation/AppNavigator';
 import { store } from './store';
-import { requestUserPermission, getFCMToken, notificationListener, checkNotificationPermission, testLocalNotification} from './services/notificationService';
+import { requestUserPermission, getFCMToken, notificationListener, checkNotificationPermission } from './services/notificationService';
 import { notificationApi } from './store/api/notificationApi';
 
 function AppContent() {
   const [isReady, setIsReady] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<string>('Initializing...');
   const navigationRef = useRef<NavigationContainerRef<any>>(null);
-
   const saveFCMTokenToBackend = async (fcmToken: string) => {
     try {
       const result = await store.dispatch(
@@ -47,23 +46,18 @@ function AppContent() {
       try {
         console.log("🚀 Starting Notification Setup...");
         setNotificationStatus('Checking permission...');
-
-        // ✅ Test local notification
-        await testLocalNotification();
-
         const hasPermission = await checkNotificationPermission();
         console.log('📱 Initial permission check:', hasPermission);
 
         if (hasPermission) {
           setNotificationStatus('Permission already granted...');
 
-          const token = await getFCMToken();
-          if (token) {
+          const fcmToken = await getFCMToken();
+          if (fcmToken) {
             setNotificationStatus('✅ Notifications ready!');
-            console.log("🔥 FCM TOKEN READY", token);
-            await saveFCMTokenToBackend(token);
+            console.log("🔥 FCM TOKEN READY", fcmToken);
+            await saveFCMTokenToBackend(fcmToken);
           }
-
           notificationListener(navigationRef);
           setIsReady(true);
           return;
@@ -76,13 +70,12 @@ function AppContent() {
           setNotificationStatus('Permission granted, getting token...');
           console.log("✅ Permission confirmed!");
 
-          const token = await getFCMToken();
-          if (token) {
+          const fcmToken = await getFCMToken();
+          if (fcmToken) {
             setNotificationStatus('✅ Notifications ready!');
-            console.log("🔥 FCM TOKEN READY", token);
-            await saveFCMTokenToBackend(token);
+            console.log("🔥 FCM TOKEN READY", fcmToken);
+            await saveFCMTokenToBackend(fcmToken);
           }
-
           notificationListener(navigationRef);
         } else {
           setNotificationStatus('❌ Permission denied');
@@ -110,9 +103,14 @@ function AppContent() {
 
   if (!isReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={{ marginTop: 20 }}>{notificationStatus}</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={{ marginTop: 20, fontSize: 16, color: '#4B5563' }}>{notificationStatus}</Text>
+        {notificationStatus.includes('Permission') && (
+          <Text style={{ marginTop: 10, fontSize: 14, color: '#9CA3AF', textAlign: 'center', paddingHorizontal: 20 }}>
+            Please allow notifications for the best experience
+          </Text>
+        )}
       </View>
     );
   }

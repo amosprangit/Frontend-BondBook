@@ -93,50 +93,57 @@ export async function requestUserPermission() {
   }
 }
 
-export async function getFCMToken() {
+export const getFCMToken = async () => {
   try {
-    const storedToken = await AsyncStorage.getItem("@fcm_token");
+    console.log("🚀 Registering device for remote messages...");
 
-    if (storedToken) {
-      console.log("📱 Using stored FCM token");
-      return storedToken;
-    }
+    await messaging().registerDeviceForRemoteMessages();
 
-    if (
-      Platform.OS === "ios" &&
-      !messaging().isDeviceRegisteredForRemoteMessages
-    ) {
-      await messaging().registerDeviceForRemoteMessages();
-    }
+    console.log("📲 Requesting fresh FCM token...");
 
     const token = await messaging().getToken();
-    console.log("🔥 FCM TOKEN:", token);
 
-    if (token) {
-      await AsyncStorage.setItem("@fcm_token", token);
+    if (!token) {
+      console.log("❌ No FCM token returned");
+      return null;
     }
+
+    console.log("🔥 Fresh Firebase Token:", token);
+    
+    // Cache only for comparison, not as the source of truth
+    await AsyncStorage.setItem("@fcm_token", token);
 
     return token;
   } catch (error) {
-    console.log("Token error:", error);
+    console.error("❌ Error getting FCM token:", error);
     return null;
   }
-}
-
+};
 async function createNotificationChannel() {
-  const existingChannel = await notifee.getChannel("default");
+  const existingChannel = await notifee.getChannel("bondbook");
   if (existingChannel) {
+    console.log("✅ Notification channel already exists");
     return "default";
   }
 
   console.log("📢 Creating notification channel...");
-  return await notifee.createChannel({
-    id: "default",
-    name: "Default Channel",
-    importance: AndroidImportance.HIGH,
-    vibration: true,
-    sound: "default",
-  });
+  try {
+    const channelId = await notifee.createChannel({
+      id: "default",
+      name: "BondBook Notifications",
+      importance: AndroidImportance.HIGH,
+      vibration: true,
+      sound: "default",
+      lightColor: "#8B5CF6",
+      lights: true,
+      vibrationPattern: [300, 500],
+    });
+    console.log("✅ Channel created:", channelId);
+    return channelId;
+  } catch (error) {
+    console.error("❌ Failed to create channel:", error);
+    return "default"; // Fallback to default
+  }
 }
 
 async function showNotification(remoteMessage: any) {
@@ -429,50 +436,6 @@ export const resetNotificationPermission = async () => {
     console.log("Reset permission error:", error);
     return false;
   }
-};
-
-// ✅ TEST FUNCTION: Test local notification
-export const testLocalNotification = async () => {
-  console.log("🧪 Testing local notification...");
-  const channelId = await createNotificationChannel();
-  await notifee.displayNotification({
-    title: "🔔 Test Notification",
-    body: "If you see this, notifee is working!",
-    android: {
-      channelId,
-      smallIcon: "ic_launcher",
-    },
-  });
-  console.log("✅ Test notification sent!");
-};
-
-// ✅ TEST FUNCTION: Test specific notification types
-export const testNotificationType = async (
-  type: NotificationType,
-  data: any = {},
-) => {
-  console.log(`🧪 Testing ${type} notification...`);
-
-  const title = getNotificationTitle(type);
-  const body = data.message || `This is a ${type} notification test`;
-
-  const channelId = await createNotificationChannel();
-  await notifee.displayNotification({
-    title,
-    body,
-    android: {
-      channelId,
-      smallIcon: "ic_launcher",
-      pressAction: {
-        id: "default",
-      },
-    },
-    data: {
-      type,
-      ...data,
-    },
-  });
-  console.log(`✅ ${type} test notification sent!`);
 };
 
 // ✅ New helper to handle different notification types
