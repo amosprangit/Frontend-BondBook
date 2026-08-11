@@ -22,14 +22,17 @@ import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthRequest } from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import { useLoginMutation, authApi } from '../store/api/authApi';
-import { postsApi } from '../store/api/postsApi';
-import { storiesApi } from '../store/api/storiesApi';
-import { useAppDispatch } from '../store/hooks';
-import { setCredentials } from '../store/slices/authSlice';
+import { makeRedirectUri } from "expo-auth-session";
+import { useLoginMutation, authApi } from '../../store/api/authApi';
+import { postsApi } from '../../store/api/postsApi';
+import { storiesApi } from '../../store/api/storiesApi';
+import { useAppDispatch } from '../../store/hooks';
+import { setCredentials } from '../../store/slices/authSlice';
 import { CommonActions } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getFCMToken } from '../services/notificationService';
+import { getFCMToken } from '../../services/notificationService';
+import * as AuthSession from "expo-auth-session";
+
 const { width, height } = Dimensions.get('window');
 
 WebBrowser.maybeCompleteAuthSession();
@@ -53,14 +56,26 @@ const LoginScreen = ({ navigation }: any) => {
 
   const [login, { isLoading }] = useLoginMutation();
   const dispatch = useAppDispatch();
-
   // Google Auth Request
+  const redirectUri = makeRedirectUri({
+    native: "com.eduspark101.bondbookapp://",
+  });
+
+  console.log("Google Redirect URI:", redirectUri);
+
   const [request, response, promptAsync] = useAuthRequest({
-    androidClientId:
-      '853348218920-ohpop0mvmpo381tgooclvhani1i2n8vi.apps.googleusercontent.com',
     webClientId:
-      '853348218920-mqhu07tt9979rb566tm55hf15c4r5h9k.apps.googleusercontent.com',
-    scopes: ['profile', 'email'],
+    "853348218920-6je8a6e92jdm5prbubaej0g3pmpg5l1b.apps.googleusercontent.com",
+    androidClientId:
+      "853348218920-ohpop0mvmpo381tgooclvhani1i2n8vi.apps.googleusercontent.com",
+    scopes: ["openid", "profile", "email"],
+    redirectUri,
+  });
+
+  console.log("Google OAuth request:", {
+    ready: !!request,
+    clientId: request?.clientId,
+    redirectUri: request?.redirectUri,
   });
 
   // Handle Google login response
@@ -345,6 +360,7 @@ const LoginScreen = ({ navigation }: any) => {
     }
   };
 
+
   const handleGoogleSignIn = async () => {
     try {
       await promptAsync();
@@ -401,7 +417,7 @@ const LoginScreen = ({ navigation }: any) => {
                     >
                       <View style={styles.logoInnerGlow}>
                         <Image
-                          source={require('../assets/images/logo.png')}
+                          source={require('../../assets/images/logo.png')}
                           resizeMode="contain"
                           style={styles.logoImage}
                         />
@@ -524,7 +540,7 @@ const LoginScreen = ({ navigation }: any) => {
                 </Animated.View>
 
                 {/* Divider */}
-                <Animated.View
+                {/* <Animated.View
                   style={[
                     styles.dividerContainer,
                     { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
@@ -535,7 +551,7 @@ const LoginScreen = ({ navigation }: any) => {
                     <Text style={styles.dividerText}>Or continue with</Text>
                     <View style={styles.dividerLine} />
                   </View>
-                </Animated.View>
+                </Animated.View> */}
 
                 {/* Google Login Button */}
                 <Animated.View
@@ -547,9 +563,16 @@ const LoginScreen = ({ navigation }: any) => {
                     },
                   ]}
                 >
-                  <TouchableOpacity
+                  {/* <TouchableOpacity
                     activeOpacity={0.9}
-                    onPress={handleGoogleSignIn}
+                    onPress={() => {
+                      console.log("🔵 Google button pressed");
+                      console.log("🔵 OAuth request ready:", !!request);
+                      console.log("🔵 OAuth redirect URI:", redirectUri);
+                      console.log("🔵 OAuth client ID:", request?.clientId);
+
+                      promptAsync();
+                    }}
                     disabled={isGoogleLoading || !request}
                   >
                     <LinearGradient
@@ -572,7 +595,7 @@ const LoginScreen = ({ navigation }: any) => {
                         </View>
                       )}
                     </LinearGradient>
-                  </TouchableOpacity>
+                  </TouchableOpacity> */}
                 </Animated.View>
 
                 {/* Create Account Link */}

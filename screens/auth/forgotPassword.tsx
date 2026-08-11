@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, Entypo, Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import { useForgotPasswordMutation } from '../store/api/authApi';
+import { useForgotPasswordMutation } from '../../store/api/authApi';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
@@ -208,7 +208,7 @@ const ForgotPasswordScreen = ({ navigation }: any) => {
                   end={{ x: 1, y: 1 }}
                 >
                   <Image
-                    source={require('../assets/images/logo.png')}
+                    source={require('../../assets/images/logo.png')}
                     resizeMode='contain'
                     style={styles.logo}
                   />
